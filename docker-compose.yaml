@@ -1,18 +1,22 @@
 version: "3.9"
+
 services:
   mongo:
-    image: mongo:7.0
     container_name: core-auth-mongo
+    image: mongo:latest
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "27019:27017"
     volumes:
       - mongo_data:/data/db
-  core-auth-service:
+
+  auth:
+    container_name: core-auth
     build:
-      context: ..
+      context: .
       dockerfile: service/Dockerfile
-    container_name: core-auth-service
+    depends_on:
+      - mongo
     environment:
       PORT: 7305
       NODE_ENV: development
@@ -26,7 +30,6 @@ services:
       LOG_PRETTY: "true"
     ports:
       - "7305:7305"
-    depends_on:
-      - mongo
+
 volumes:
   mongo_data:
