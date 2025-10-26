@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import mongoose, { Connection, Document, Model } from 'mongoose';
 
 export interface OAuthClientDocument extends Document {
@@ -14,7 +15,7 @@ export interface OAuthClientDocument extends Document {
 }
 
 const oauthClientSchema = new mongoose.Schema<OAuthClientDocument>({
-  _id: { type: String, required: true },
+  _id: { type: String, required: true, default: () => randomUUID() },
   tenantId: { type: String, required: true, index: true },
   name: { type: String, required: true },
   secretHash: { type: String, required: true },

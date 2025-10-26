@@ -59,13 +59,24 @@ Core Auth relies on tenant-scoped metadata stored in MongoDB. Enabling OAuth 2.0
    ```
 
 2. **Register OAuth Clients** – Insert records into `oauth_clients` with:
-   - `_id` (client_id)
+   - `_id` (omit to auto-generate a UUID client id, or provide your own)
    - `tenantId` (matching the tenant)
    - `secretHash` (use `hashSecret(plainSecret)` from `service/src/utils/hash.ts`)
    - `grantTypes` (subset of tenant `allowedGrantTypes`)
    - `scopes` (subset of tenant `allowedScopes`)
 
-3. **Distribute Credentials** – Share the `client_id` and plain secret with the product team. Encourage storing secrets in the product’s own secrets manager.
+   ```js
+   db.oauth_clients.insertOne({
+     tenantId: "tenant-123",
+     name: "Test Client",
+     secretHash: "<hash of plain secret>",
+     grantTypes: ["client_credentials"],
+     scopes: ["telemetry:read"],
+     isConfidential: true
+   });
+   ```
+
+3. **Distribute Credentials** – Share the generated `client_id` (look up `_id` after insertion if you omitted it) and the plain secret with the product team. Encourage storing secrets in the product’s own secrets manager.
 
 4. **Verify Token Issuance** – Run `POST /oauth2/token` with the registered credentials. Tokens are rejected unless all tenant validation checks pass.
 
@@ -86,3 +97,4 @@ Tenants without the `oauth` section continue to support legacy session issuance,
 - Monitor structured logs for `issued client credentials token` events to validate adoption and spot unexpected tenants/grants.
 
 For full architecture context, review [architecture.md](architecture.md). For endpoint contracts, see [api.md](api.md).
+> **Tip:** The `_id` is automatically generated as a UUID when omitted. Provide one explicitly only if you need a stable identifier determined outside the service.

@@ -1,0 +1,18 @@
+{
+  "name": "Manual Harness Tenant",
+  "status": "active",
+  "allowedOrigins": [
+    "https://example-app.local",
+    "http://localhost:3000"
+  ],
+  "oauth": {
+    "enabled": true,
+    "allowedGrantTypes": ["client_credentials"],
+    "allowedScopes": ["telemetry:read", "telemetry:write"],
+    "limits": {
+      "tokensPerMinute": 200,
+      "refreshTokens": 10000,
+      "clientCap": 50
+    }
+  }
+}

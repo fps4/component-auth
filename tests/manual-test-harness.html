@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Core Auth Manual Test Harness</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+    body {
+      margin: 0;
+      padding: 2rem;
+      background: #f5f5f5;
+      color: #222;
+      min-height: 100vh;
+    }
+    h1, h2 {
+      margin: 0 0 0.5rem;
+    }
+    section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.75rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      font-size: 0.95rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      border-radius: 4px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    pre {
+      background: #111827;
+      color: #f9fafb;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .row {
+      display: grid;
+      gap: 1rem;
+    }
+    @media (min-width: 768px) {
+      .row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .status {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .status.success {
+      color: #047857;
+    }
+    .status.error {
+      color: #b91c1c;
+    }
+  </style>
+</head>
+<body>
+  <h1>Core Auth Manual Test Harness</h1>
+  <p>Use this page to exercise the deployed Core Auth service without additional tooling. Update the configuration below to match the target environment.</p>
+
+  <section>
+    <h2>Configuration</h2>
+    <div class="row">
+      <div>
+        <label for="baseUrl">Service Base URL</label>
+        <input id="baseUrl" type="url" placeholder="https://auth.example.com" required>
+      </div>
+      <div>
+        <label for="tenantId">Tenant ID</label>
+        <input id="tenantId" type="text" placeholder="tenant-123" required>
+      </div>
+      <div>
+        <label for="clientId">Client ID (OAuth)</label>
+        <input id="clientId" type="text" placeholder="auto-generated or configured">
+      </div>
+      <div>
+        <label for="clientSecret">Client Secret (OAuth)</label>
+        <input id="clientSecret" type="password" placeholder="plain secret value">
+      </div>
+      <div>
+        <label for="scopes">Scopes (space separated)</label>
+        <input id="scopes" type="text" placeholder="telemetry:read telemetry:write">
+      </div>
+      <div>
+        <label for="visitorId">Visitor ID (optional)</label>
+        <input id="visitorId" type="text" placeholder="visitor-123">
+      </div>
+    </div>
+    <button id="saveConfig">Save Configuration</button>
+    <span id="configStatus" class="status"></span>
+  </section>
+
+  <section>
+    <h2>Create Session</h2>
+    <p>Exercises <code>POST /v1/tenants/:tenantId/sessions</code>. Adjust client meta as needed.</p>
+    <label for="clientMeta">Client Meta (JSON)</label>
+    <textarea id="clientMeta" rows="5" placeholder='{"ip":"1.2.3.4","userAgent":"Manual Harness"}'></textarea>
+    <button id="createSession">Create Session</button>
+    <span id="sessionStatus" class="status"></span>
+    <h3>Response</h3>
+    <pre id="sessionResponse">(no response yet)</pre>
+  </section>
+
+  <section>
+    <h2>Request OAuth Token (Client Credentials)</h2>
+    <p>Exercises <code>POST /oauth2/token</code> using the client credentials configured above.</p>
+    <button id="requestToken">Request Token</button>
+    <span id="tokenStatus" class="status"></span>
+    <h3>Response</h3>
+    <pre id="tokenResponse">(no response yet)</pre>
+  </section>
+
+  <script>
+    const configKey = 'core-auth-manual-config';
+    const elements = {
+      baseUrl: document.getElementById('baseUrl'),
+      tenantId: document.getElementById('tenantId'),
+      clientId: document.getElementById('clientId'),
+      clientSecret: document.getElementById('clientSecret'),
+      scopes: document.getElementById('scopes'),
+      visitorId: document.getElementById('visitorId'),
+      clientMeta: document.getElementById('clientMeta'),
+      sessionResponse: document.getElementById('sessionResponse'),
+      tokenResponse: document.getElementById('tokenResponse'),
+      createSession: document.getElementById('createSession'),
+      requestToken: document.getElementById('requestToken'),
+      saveConfig: document.getElementById('saveConfig'),
+      configStatus: document.getElementById('configStatus'),
+      sessionStatus: document.getElementById('sessionStatus'),
+      tokenStatus: document.getElementById('tokenStatus')
+    };
+
+    function loadConfig() {
+      try {
+        const saved = localStorage.getItem(configKey);
+        if (!saved) return;
+        const cfg = JSON.parse(saved);
+        elements.baseUrl.value = cfg.baseUrl ?? '';
+        elements.tenantId.value = cfg.tenantId ?? '';
+        elements.clientId.value = cfg.clientId ?? '';
+        elements.clientSecret.value = cfg.clientSecret ?? '';
+        elements.scopes.value = cfg.scopes ? cfg.scopes.join(' ') : '';
+        elements.visitorId.value = cfg.visitorId ?? '';
+        elements.clientMeta.value = cfg.clientMeta ? JSON.stringify(cfg.clientMeta, null, 2) : '';
+      } catch (error) {
+        console.error('Failed to load config', error);
+      }
+    }
+
+    function gatherConfig() {
+      const scopes = elements.scopes.value.trim();
+      let meta = undefined;
+      const rawMeta = elements.clientMeta.value.trim();
+      if (rawMeta) {
+        try {
+          meta = JSON.parse(rawMeta);
+        } catch (err) {
+          throw new Error('Client Meta must be valid JSON');
+        }
+      }
+
+      return {
+        baseUrl: elements.baseUrl.value.trim().replace(/\/+$/, ''),
+        tenantId: elements.tenantId.value.trim(),
+        clientId: elements.clientId.value.trim(),
+        clientSecret: elements.clientSecret.value,
+        scopes: scopes ? scopes.split(/\s+/) : [],
+        visitorId: elements.visitorId.value.trim(),
+        clientMeta: meta
+      };
+    }
+
+    elements.saveConfig.addEventListener('click', () => {
+      try {
+        const cfg = gatherConfig();
+        localStorage.setItem(configKey, JSON.stringify(cfg));
+        elements.configStatus.textContent = 'Configuration saved.';
+        elements.configStatus.className = 'status success';
+      } catch (error) {
+        elements.configStatus.textContent = error.message;
+        elements.configStatus.className = 'status error';
+      }
+      setTimeout(() => { elements.configStatus.textContent = ''; }, 3000);
+    });
+
+    async function createSession() {
+      let cfg;
+      try {
+        cfg = gatherConfig();
+      } catch (error) {
+        elements.sessionStatus.textContent = error.message;
+        elements.sessionStatus.className = 'status error';
+        return;
+      }
+      if (!cfg.baseUrl || !cfg.tenantId) {
+        elements.sessionStatus.textContent = 'Base URL and tenant ID are required.';
+        elements.sessionStatus.className = 'status error';
+        return;
+      }
+
+      elements.createSession.disabled = true;
+      elements.sessionStatus.textContent = 'Sending request...';
+      elements.sessionStatus.className = 'status';
+
+      const body = {
+        visitorId: cfg.visitorId || undefined,
+        subject: cfg.visitorId || undefined,
+        clientMeta: cfg.clientMeta || undefined
+      };
+
+      try {
+        const res = await fetch(`${cfg.baseUrl}/v1/tenants/${encodeURIComponent(cfg.tenantId)}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const payload = await res.json().catch(() => ({}));
+        elements.sessionResponse.textContent = JSON.stringify(payload, null, 2);
+        if (!res.ok) {
+          elements.sessionStatus.textContent = `Error ${res.status}: ${payload.message ?? 'Unknown error'}`;
+          elements.sessionStatus.className = 'status error';
+        } else {
+          elements.sessionStatus.textContent = 'Session created successfully.';
+          elements.sessionStatus.className = 'status success';
+        }
+      } catch (error) {
+        elements.sessionStatus.textContent = `Request failed: ${error.message}`;
+        elements.sessionStatus.className = 'status error';
+        elements.sessionResponse.textContent = String(error);
+      } finally {
+        elements.createSession.disabled = false;
+      }
+    }
+
+    async function requestToken() {
+      let cfg;
+      try {
+        cfg = gatherConfig();
+      } catch (error) {
+        elements.tokenStatus.textContent = error.message;
+        elements.tokenStatus.className = 'status error';
+        return;
+      }
+      if (!cfg.baseUrl || !cfg.clientId || !cfg.clientSecret) {
+        elements.tokenStatus.textContent = 'Base URL, client ID, and client secret are required.';
+        elements.tokenStatus.className = 'status error';
+        return;
+      }
+
+      elements.requestToken.disabled = true;
+      elements.tokenStatus.textContent = 'Sending request...';
+      elements.tokenStatus.className = 'status';
+
+      const params = new URLSearchParams();
+      params.set('grant_type', 'client_credentials');
+      if (cfg.scopes.length) {
+        params.set('scope', cfg.scopes.join(' '));
+      }
+
+      try {
+        const res = await fetch(`${cfg.baseUrl}/oauth2/token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + btoa(`${cfg.clientId}:${cfg.clientSecret}`)
+          },
+          body: params.toString()
+        });
+        const payload = await res.json().catch(() => ({}));
+        elements.tokenResponse.textContent = JSON.stringify(payload, null, 2);
+        if (!res.ok) {
+          elements.tokenStatus.textContent = `Error ${res.status}: ${payload.error_description ?? payload.error ?? 'Unknown error'}`;
+          elements.tokenStatus.className = 'status error';
+        } else {
+          elements.tokenStatus.textContent = 'Access token issued successfully.';
+          elements.tokenStatus.className = 'status success';
+        }
+      } catch (error) {
+        elements.tokenStatus.textContent = `Request failed: ${error.message}`;
+        elements.tokenStatus.className = 'status error';
+        elements.tokenResponse.textContent = String(error);
+      } finally {
+        elements.requestToken.disabled = false;
+      }
+    }
+
+    elements.createSession.addEventListener('click', createSession);
+    elements.requestToken.addEventListener('click', requestToken);
+
+    loadConfig();
+  </script>
+</body>
+</html>

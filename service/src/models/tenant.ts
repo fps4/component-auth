@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import mongoose, { Connection, Document, Model } from 'mongoose';
 
 const { Schema } = mongoose;
@@ -45,7 +46,7 @@ const oauthConfigSchema = new Schema<TenantOAuthConfig>({
 }, { _id: false });
 
 const tenantSchema = new Schema<TenantDocument>({
-  _id: { type: String, required: true },
+  _id: { type: String, required: true, default: () => randomUUID() },
   name: { type: String, required: true, maxlength: 256 },
   status: { type: String, enum: ['active', 'suspended', 'trial', 'deleted'], default: 'active' },
   planId: { type: String },

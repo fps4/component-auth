@@ -78,6 +78,7 @@ Run `npm install && npm run build` inside `sdk/` to compile distributable assets
 - `docs/architecture.md` – overall architecture and OAuth components.
 - `docs/api.md` – endpoint contract.
 - `docs/tenant-config.md` – tenant onboarding & OAuth configuration.
+- `tests/` – manual harness + scripts for integration checks on deployed environments.
 
 ## Migration Notes
 
