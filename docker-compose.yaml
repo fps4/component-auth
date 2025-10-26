@@ -1,10 +1,9 @@
 services:
   mongo:
     container_name: core-auth-mongo
-    # Pin to MongoDB 4.4 which does not require CPU AVX instructions.
     # MongoDB 5.0+ requires AVX; using `mongo:latest` pulls a newer major
-    # release which can fail on older CPUs / virtualization setups.
-    image: mongo:4.4
+    # Ref: https://github.com/flakybitnet/mongodb-oci
+    image: ghcr.io/flakybitnet/mongodb-server:8.0.13-fb1
     restart: unless-stopped
     ports:
       - "27019:27017"
