@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createOAuthServer } from '../src/oauth/server.js';
 import { hashSecret } from '../src/utils/hash.js';
 import {
@@ -7,8 +7,30 @@ import {
   RateLimitExceededError
 } from '../src/oauth/errors.js';
 import { decodeJwt } from 'jose';
+import { generateKeyPairSync } from 'crypto';
 import type { OAuthServerDependencies } from '../src/oauth/types.js';
 import type { TenantDocument, TenantOAuthConfig } from '../src/models/tenant.js';
+
+const { privateKey: testPrivateKeyPem, publicKey: testPublicKeyPem } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+});
+
+vi.mock('../src/utils/key-store.js', () => ({
+  getActiveKeyPair: vi.fn(async () => ({
+    kid: 'test-kid',
+    privateKeyPem: testPrivateKeyPem,
+    publicKeyPem: testPublicKeyPem
+  })),
+  ensureActiveSigningKey: vi.fn(async () => ({
+    kid: 'test-kid',
+    privateKeyPem: testPrivateKeyPem,
+    publicKeyPem: testPublicKeyPem
+  })),
+  listPublicKeys: vi.fn(async () => []),
+  rotateSigningKey: vi.fn()
+}));
 
 type TokenDoc = {
   _id: string;

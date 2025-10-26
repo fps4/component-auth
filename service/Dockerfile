@@ -8,7 +8,7 @@ RUN npm install
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build && npm prune --production
+RUN npm run build && npm test && npm prune --production
 
 FROM base AS runtime
 ENV NODE_ENV=production
