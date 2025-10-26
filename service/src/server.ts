@@ -27,9 +27,27 @@ async function bootstrap() {
         'http://localhost:3000',
         'http://127.0.0.1:3000',
         'http://localhost:5173',
-        'http://127.0.0.1:5173'
+        'http://127.0.0.1:5173',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080'
       ];
   const allowedOrigins = new Set([...staticOrigins, ...devOrigins]);
+
+  const isPrivateNetworkOriginAllowed = (origin: string): boolean => {
+    if (isProd) return false;
+    try {
+      const { hostname } = new URL(origin);
+      if (!hostname) return false;
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+        return true;
+      }
+      if (hostname.startsWith('10.')) return true;
+      if (hostname.startsWith('192.168.')) return true;
+      return /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+    } catch {
+      return false;
+    }
+  };
 
   await refreshTenantOrigins();
   scheduleTenantCorsRefresh(CONFIG.corsRefreshIntervalMs);
@@ -37,7 +55,7 @@ async function bootstrap() {
   const corsOptions: cors.CorsOptions = {
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.has(origin) || isTenantOriginAllowed(origin)) {
+      if (allowedOrigins.has(origin) || isTenantOriginAllowed(origin) || isPrivateNetworkOriginAllowed(origin)) {
         return callback(null, true);
       }
       if (allowedOrigins.size === 0 && !hasTenantOrigins()) {
