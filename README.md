@@ -6,10 +6,10 @@ Multi-tenant authentication building blocks shared across products. The project 
 
 ```
 core-auth/
+ ├── docker/           # Docker Compose base + env-specific overrides
  ├── service/          # REST API + Docker assets
  │    ├── src/         # Express app, core logic, models
  │    ├── Dockerfile   # Container build
- │    └── infra/       # Local orchestration (docker-compose, etc.)
  ├── sdk/              # TypeScript client for the API
  │    └── src/
  ├── docs/             # Architecture notes & API reference
@@ -36,8 +36,9 @@ core-auth/
 3. (Optional) Run with Docker:
 
    ```bash
-   docker compose up --build
+   docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up --build
    ```
+   Use `docker compose -f docker/compose.yaml -f docker/compose.dev.yaml down` to stop containers.
 
 The service listens on `PORT` (default `7305`). Health check at `GET /health`.
 
@@ -88,3 +89,10 @@ Existing authentication logic in `product-chatbot` maps directly onto this servi
 - `services/authorizer` → `service/src/server.ts` and routes/models
 
 Downstream products should replace direct module imports with API calls through the service or the SDK to decouple authentication concerns.
+
+## Deployments
+
+- `.github/workflows/deploy.yml` deploys with self-hosted runners and Docker Compose overlays.
+- Pushes to `main` roll out to production using `docker/compose.prod.yaml` on a runner labeled `prod`.
+- Pushes to any other branch deploy to the `dev` runner with `docker/compose.dev.yaml`.
+- Manual runs via *Run workflow* in GitHub Actions let you redeploy either environment on demand.

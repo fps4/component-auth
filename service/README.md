@@ -66,4 +66,4 @@ db.tenants.insertOne({
 
 ## Docker
 
-Use the root `docker-compose.yaml` to spin up MongoDB and the service together for local development.
+Use `docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up --build` from the repository root to run MongoDB and the service together for local development.

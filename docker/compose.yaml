@@ -1,0 +1,42 @@
+services:
+  mongo:
+    container_name: core-auth-mongo
+    # MongoDB 5.0+ requires AVX; using `mongo:latest` pulls a newer major
+    # Ref: https://github.com/flakybitnet/mongodb-oci
+    image: ghcr.io/flakybitnet/mongodb-server:8.0.13-fb1
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27019}:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  core-auth:
+    container_name: core-auth
+    build:
+      context: ./service
+      dockerfile: Dockerfile
+    depends_on:
+      - mongo
+    environment:
+      PORT: ${PORT:-7305}
+      NODE_ENV: ${NODE_ENV:-production}
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-core-auth}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:-core-auth-service}
+      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-core-auth-clients}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-15}
+      OAUTH_ACCESS_TOKEN_TTL_SEC: ${OAUTH_ACCESS_TOKEN_TTL_SEC:-900}
+      OAUTH_REFRESH_TOKEN_TTL_SEC: ${OAUTH_REFRESH_TOKEN_TTL_SEC:-2592000}
+      OAUTH_TENANT_MAX_CLIENTS: ${OAUTH_TENANT_MAX_CLIENTS:-50}
+      OAUTH_TENANT_MAX_TOKENS_PER_MINUTE: ${OAUTH_TENANT_MAX_TOKENS_PER_MINUTE:-200}
+      OAUTH_TENANT_MAX_REFRESH_TOKENS: ${OAUTH_TENANT_MAX_REFRESH_TOKENS:-10000}
+      OAUTH_KEY_PASSPHRASE: ${OAUTH_KEY_PASSPHRASE:-}
+      OAUTH_KEY_ROTATION_HOURS: ${OAUTH_KEY_ROTATION_HOURS:-720}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+    ports:
+      - "${CORE_AUTH_PORT:-7305}:7305"
+
+volumes:
+  mongo_data:

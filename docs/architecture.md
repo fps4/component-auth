@@ -38,7 +38,7 @@ The **core-auth** platform separates authentication responsibilities into a conf
 ## Deployment
 
 - The service runs as a stateless container driven entirely by environment variables (`service/.env.example` documents all knobs).
-- MongoDB is the only persistent dependency. The root `docker-compose.yaml` provisions Mongo and the service for local development.
+- MongoDB is the only persistent dependency. `docker/compose.yaml` paired with the dev/prod overlays (`docker/compose.dev.yaml`, `docker/compose.prod.yaml`) provisions Mongo and the service for local development and the deployment workflow.
 - RSA signing keys are stored in the `key_store` collection. Key rotation utilities mint new keys, demote the previous key to `inactive`, and expose the public JWKS at `/.well-known/jwks.json` for verifiers.
 
 ## OAuth 2.0 Architecture Highlights

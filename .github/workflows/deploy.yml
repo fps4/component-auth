@@ -1,0 +1,38 @@
+name: Deploy with Self-Hosted Runners
+
+on:
+  push:
+    branches:
+      - main
+      - '**'
+  workflow_dispatch:   # allows manual redeploy via GitHub UI
+    inputs:
+      environment:
+        description: "Select environment (dev or prod)"
+        required: true
+        default: "dev"
+
+jobs:
+  deploy-dev:
+    if: (github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    runs-on: [self-hosted, dev]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to DEV
+        run: |
+          echo "Deploying branch ${{ github.ref_name }} to DEV"
+          docker compose -f docker/compose.yaml -f docker/compose.dev.yaml up -d --build
+
+  deploy-prod:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    runs-on: [self-hosted, prod]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to PROD
+        run: |
+          echo "Deploying main branch to PROD"
+          docker compose -f docker/compose.yaml -f docker/compose.prod.yaml up -d --build
