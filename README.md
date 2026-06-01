@@ -79,6 +79,7 @@ Run `npm install && npm run build` inside `sdk/` to compile distributable assets
 - `docs/architecture.md` – overall architecture and OAuth components.
 - `docs/api.md` – endpoint contract.
 - `docs/tenant-config.md` – tenant onboarding & OAuth configuration.
+- `docs/requirements/` – open requirements for pickup. `RQ-0001` adds user identity via Google SSO (OIDC), issued as a JWT maestro's authenticated edge verifies.
 - `tests/` – manual harness + scripts for integration checks on deployed environments.
 
 ## Migration Notes

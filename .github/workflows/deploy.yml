@@ -5,6 +5,14 @@ on:
     branches:
       - main
       - '**'
+    # Docs / metadata changes must not redeploy the service (a docs PR merged to main would
+    # otherwise rebuild PROD). Only changes to code or deploy assets trigger a deploy; a push whose
+    # files all match these patterns is skipped. workflow_dispatch still allows a manual redeploy.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.github/**'
   workflow_dispatch:   # allows manual redeploy via GitHub UI
     inputs:
       environment:
