@@ -70,6 +70,10 @@ web_modules/
 .env.*
 !.env.example
 
+# Seed config — real tenant/user data is gitignored; only the template is committed (RQ-0004)
+config/seed.yaml
+config/*.local.yaml
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

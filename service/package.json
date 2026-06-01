@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "start:prod": "NODE_ENV=production node dist/server.js",
     "manage-users": "tsx scripts/manage-users.ts",
+    "seed": "tsx scripts/seed.ts",
     "test": "vitest"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@types/node": "^20.12.7",
     "tsx": "^4.7.2",
     "typescript": "^5.4.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yaml": "^2.4.0"
   }
 }

@@ -25,7 +25,8 @@ It issues two kinds of JWT, both RS256-signed and verifiable via a published JWK
 | `service/src/core/` | JWT signing helpers and the session authorizer. |
 | `service/src/models/` | Mongoose models: tenant, oauth-client, oauth-token, oauth-authorization, user, session, key-store. |
 | `service/src/services/` | `users.ts` — local-credential registration + tenant/policy validation (RQ-0002). |
-| `service/scripts/` | `manage-users.ts` — operator CLI (create/reset/lock/unlock/disable users). |
+| `service/scripts/` | Operator CLIs: `manage-users.ts` (create/reset/lock/unlock/disable users) and `seed.ts` (idempotent `npm run seed` loader — RQ-0004). |
+| `config/` | `seed.example.yaml` (committed template) → `config/seed.yaml` (gitignored): tenants + clients + users for seed provisioning. |
 | `service/src/utils/` | Key store (RSA generate/rotate + JWKS), db, hashing, CORS, logging. |
 | `service/tests/` | Vitest suites (dependency-injected, no network/DB). |
 | `sdk/` | Headless TypeScript client: `requestClientCredentialsToken` + the Google login helpers (`beginGoogleLogin` / `completeGoogleLogin` / `refreshUserToken` / `revokeUserToken`) + `registerWithPassword` / `loginWithPassword`. No UI; safe server-side. |
