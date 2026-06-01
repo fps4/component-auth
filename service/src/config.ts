@@ -24,7 +24,15 @@ export const CONFIG = {
     sessionTtlMinutes: toNumber(process.env.SESSION_TTL_MINUTES, 15),
     jwtSecret: process.env.AUTH_JWT_SECRET ?? '',
     jwtIssuer: process.env.AUTH_JWT_ISSUER ?? 'component-auth-service',
-    jwtAudience: process.env.AUTH_JWT_AUDIENCE ?? 'component-auth-clients'
+    jwtAudience: process.env.AUTH_JWT_AUDIENCE ?? 'component-auth-clients',
+    // Local-credential IdP (RQ-0002): password policy + brute-force lockout.
+    password: {
+      minLength: toNumber(process.env.AUTH_PASSWORD_MIN_LENGTH, 10),
+      maxFailedAttempts: toNumber(process.env.AUTH_PASSWORD_MAX_ATTEMPTS, 5),
+      lockoutMinutes: toNumber(process.env.AUTH_PASSWORD_LOCKOUT_MINUTES, 15),
+      // Per-tenant self-service registration rate limit (abuse guard on the public endpoint).
+      registrationsPerMinute: toNumber(process.env.AUTH_REGISTRATIONS_PER_MINUTE, 20)
+    }
   },
   oauth: {
     accessTokenTtlSec: toNumber(process.env.OAUTH_ACCESS_TOKEN_TTL_SEC, 15 * 60),

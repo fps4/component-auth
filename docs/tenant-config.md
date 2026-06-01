@@ -168,6 +168,47 @@ maestro's verifier (`orchestrator/edgeauth.py`) must be configured to match what
 If `iss` / `aud` / the JWKS URL do not line up exactly, maestro rejects the token as unauthenticated
 (401) — there is no fallback.
 
+## Local username/password login (RQ-0002)
+
+For tenants that want component-auth's own email + password IdP instead of (or alongside) Google,
+enable the `password` grant and mark the `local` IdP:
+
+```js
+db.tenants.updateOne(
+  { _id: "tenant-local" },
+  { $set: {
+      status: "active",
+      "oauth.enabled": true,
+      "oauth.allowedGrantTypes": ["password"],
+      "oauth.idp": { provider: "local" }
+  } },
+  { upsert: true }
+);
+```
+
+Register a client allowing the `password` grant with an `audience` (binds the issued token's `aud`):
+
+```js
+db.oauth_clients.insertOne({
+  _id: "client-local", tenantId: "tenant-local", name: "local web",
+  grantTypes: ["password"], audience: "maestro-workspace",
+  redirectUris: [], scopes: [], isConfidential: false, secretHash: ""
+});
+```
+
+Then users **self-register** (`POST /v1/tenants/:tenantId/register`) and **log in** via the
+`password` grant. The issued token is identical in shape to the Google-SSO token (`email` + stable
+`sub` + `iss` + `aud` + `exp`), so a consumer like maestro verifies it the same way.
+
+Operators manage credentials with the CLI (no email channel yet):
+
+```bash
+cd service
+npm run manage-users -- create       --tenant=tenant-local --email=u@x.test --password=...
+npm run manage-users -- set-password  --tenant=tenant-local --email=u@x.test --password=...
+npm run manage-users -- lock|unlock|disable|enable|delete --tenant=tenant-local --email=u@x.test
+```
+
 ## Operational Tips
 
 - Keep tenant configuration changes in version control (e.g., infrastructure repo) or via migration scripts to track history.

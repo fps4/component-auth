@@ -13,9 +13,16 @@ Terms where component-auth's business language and code diverge, or that a consu
 - **Client credentials** — the machine-to-machine grant. A confidential client exchanges its secret
   for a short-lived access token carrying `tid` / `cid` / `sid` / `scope`.
 
-- **User identity token** — the human-login token (RQ-0001). An RS256 JWT carrying `email`, the
-  stable Google `sub`, `iss`, a consumer-bound `aud`, and `exp`/`iat`. Proves *who you are*, not
-  *what you may do*.
+- **User identity token** — the human-login token. An RS256 JWT carrying `email`, a stable `sub`,
+  `iss`, a consumer-bound `aud`, and `exp`/`iat`. Proves *who you are*, not *what you may do*. Issued
+  by either IdP (Google SSO or local password) with the same shape.
+
+- **IdP (identity provider)** — how a user authenticates. `google` federates Google SSO (RQ-0001);
+  `local` is component-auth's own email/password store (RQ-0002). A per-tenant choice (`oauth.idp`);
+  both issue the same user token.
+
+- **Local user** — an email/password account in the `users` collection (RQ-0002). Per-tenant unique
+  email, salted-scrypt password hash, a stable server-minted `sub`, and brute-force lockout counters.
 
 - **Audience (`aud`)** — the consumer/workspace a user token is bound to (the client's `audience`
   field). A consumer verifies `aud` equals its own configured value; a token for one workspace is

@@ -10,9 +10,10 @@ export interface TenantOAuthLimits {
 }
 
 export interface TenantIdpConfig {
-  // Upstream identity provider this tenant federates for user login (RQ-0001). Declarative marker
-  // only — the Google app's client id/secret live in service config (env), never in the tenant doc.
-  provider: 'google';
+  // Identity provider(s) this tenant uses for user login. `google` federates Google SSO (RQ-0001,
+  // app secrets in env); `local` is component-auth's own email + password IdP (RQ-0002). Declarative
+  // marker — the effective gate is which grant types the tenant allows (authorization_code / password).
+  provider: 'google' | 'local';
 }
 
 export interface TenantOAuthConfig {
@@ -46,7 +47,7 @@ const oauthLimitsSchema = new Schema<TenantOAuthLimits>({
 }, { _id: false });
 
 const idpConfigSchema = new Schema<TenantIdpConfig>({
-  provider: { type: String, enum: ['google'], required: true }
+  provider: { type: String, enum: ['google', 'local'], required: true }
 }, { _id: false });
 
 const oauthConfigSchema = new Schema<TenantOAuthConfig>({

@@ -43,12 +43,13 @@ The **component-auth** platform separates authentication responsibilities into a
 
 ## OAuth 2.0 Architecture Highlights
 
-- **Token Endpoint** (`/oauth2/token`) supports the client-credentials grant (machine tokens) and, for user login (RQ-0001), the authorization-code (Google SSO via OIDC + PKCE) and refresh-token grants. The browser legs are `/oauth2/authorize` and `/oauth2/callback`; `/oauth2/revoke` revokes a refresh token and its session. Additional grants plug into the OAuth server module.
+- **Token Endpoint** (`/oauth2/token`) supports the client-credentials grant (machine tokens) and, for user login, the authorization-code (Google SSO via OIDC + PKCE — RQ-0001), refresh-token, and password (local email/password IdP — RQ-0002) grants. The browser legs are `/oauth2/authorize` and `/oauth2/callback`; `/oauth2/revoke` revokes a refresh token and its session; `/v1/tenants/:id/register` is local self-service registration. All user grants issue the same `email`+`sub` token. Additional grants plug into the OAuth server module.
 - **Key Management** – Active keys are generated automatically; optional AES-256-GCM encryption at rest is available when `OAUTH_KEY_PASSPHRASE` is configured.
 - **Data Collections**
   - `oauth_clients` – Registered clients per tenant (client secret hashes, grant types, redirect URIs, scopes).
   - `oauth_tokens` – Issued access and refresh token metadata (refresh tokens stored hashed) with rate-limit friendly indexes.
   - `oauth_authorizations` – Short-lived, TTL-swept user-login records (PKCE challenge + state + nonce, then the single-use code and captured identity) for the Google SSO flow.
+  - `users` – Local-credential users (RQ-0002): per-tenant email, scrypt password hash, stable subject id, status, and brute-force lockout counters.
   - `key_store` – RSA key material with status flags for rotation and JWKS publishing.
 - **Rate Limiting** – Tenants may override default token throughput (`tokensPerMinute`) and refresh-token budgets via their OAuth config.
 

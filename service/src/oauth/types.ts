@@ -5,6 +5,7 @@ import type {
   OAuthClientDocument,
   OAuthTokenDocument,
   OAuthAuthorizationDocument,
+  UserDocument,
   KeyStoreDocument,
   SessionDocument
 } from '../models/index.js';
@@ -15,6 +16,7 @@ export interface ModelsBucket {
   OAuthClient: Model<OAuthClientDocument>;
   OAuthToken: Model<OAuthTokenDocument>;
   OAuthAuthorization: Model<OAuthAuthorizationDocument>;
+  User: Model<UserDocument>;
   KeyStore: Model<KeyStoreDocument>;
   Session: Model<SessionDocument>;
 }
@@ -79,6 +81,12 @@ export interface AuthorizationCodeInput {
 
 export interface RefreshTokenInput {
   refreshToken: string;
+  clientId: string;
+}
+
+export interface PasswordGrantInput {
+  username: string;   // the user's email
+  password: string;
   clientId: string;
 }
 

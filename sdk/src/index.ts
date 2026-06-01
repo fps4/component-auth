@@ -90,6 +90,26 @@ export interface RevokeUserTokenParams {
   headers?: Record<string, string>;
 }
 
+export interface RegisterWithPasswordParams {
+  tenantId?: string;
+  email: string;
+  password: string;
+  headers?: Record<string, string>;
+}
+
+export interface RegisteredUser {
+  id: string;
+  email: string;
+  tenantId: string;
+}
+
+export interface LoginWithPasswordParams {
+  username: string;
+  password: string;
+  clientId?: string;
+  headers?: Record<string, string>;
+}
+
 export interface UserTokenResponse {
   accessToken: string;
   tokenType: string;
@@ -292,6 +312,35 @@ export class ComponentAuthClient {
       body: body.toString(),
       skipDefaultAuth: true
     });
+  }
+
+  /** Self-service local-credential registration (RQ-0002). Login is a separate `loginWithPassword`. */
+  async registerWithPassword(params: RegisterWithPasswordParams): Promise<RegisteredUser> {
+    const tenantId = params.tenantId ?? this.defaultTenantId;
+    if (!tenantId) {
+      throw new Error('tenantId is required to register');
+    }
+    const url = `${this.baseUrl}/v1/tenants/${encodeURIComponent(tenantId)}/register`;
+    return this.request<RegisteredUser>(url, {
+      method: 'POST',
+      headers: params.headers,
+      body: JSON.stringify({ email: params.email, password: params.password })
+    });
+  }
+
+  /** Log in with email + password (the `password` grant), returning a user token. */
+  async loginWithPassword(params: LoginWithPasswordParams): Promise<UserTokenResponse> {
+    const clientId = params.clientId ?? this.defaultClientId;
+    if (!clientId) {
+      throw new Error('clientId is required to log in with a password');
+    }
+    const body = new URLSearchParams({
+      grant_type: 'password',
+      username: params.username,
+      password: params.password,
+      client_id: clientId
+    });
+    return this.postUserToken(body, params.headers);
   }
 
   private async postUserToken(body: URLSearchParams, headers?: Record<string, string>): Promise<UserTokenResponse> {

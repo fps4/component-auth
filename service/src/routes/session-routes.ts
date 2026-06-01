@@ -7,11 +7,34 @@ import {
   SessionNotFoundError,
   NoSessionUpdatesProvidedError
 } from '../core/errors.js';
-import { authorizer } from '../container.js';
+import { authorizer, userService } from '../container.js';
+import { UserServiceError } from '../services/users.js';
 import { extractClientMeta } from '../utils/request-metadata.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
+
+// Self-service local-credential registration (RQ-0002). Login is the separate `password` grant.
+router.post('/tenants/:tenantId/register', async (req: Request, res: Response) => {
+  const tenantId = req.params?.tenantId;
+  if (!tenantId) {
+    return res.status(400).json({ message: 'tenantId parameter is required' });
+  }
+  try {
+    const user = await userService.registerUser({
+      tenantId,
+      email: typeof req.body?.email === 'string' ? req.body.email : '',
+      password: typeof req.body?.password === 'string' ? req.body.password : ''
+    });
+    return res.status(201).json({ id: user.id, email: user.email, tenantId: user.tenantId });
+  } catch (error: any) {
+    if (error instanceof UserServiceError) {
+      return res.status(error.status).json({ error: error.code, message: error.message });
+    }
+    logger.error({ err: error, tenantId }, 'register user failed');
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 
 router.post('/tenants/:tenantId/sessions', async (req: Request, res: Response) => {
   const tenantId = req.params?.tenantId;

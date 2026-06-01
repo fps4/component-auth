@@ -13,6 +13,7 @@ import type {
   AuthorizationCodeInput,
   RefreshTokenInput,
   RevokeTokenInput,
+  PasswordGrantInput,
   UserTokenResponse
 } from './types.js';
 import {
@@ -33,6 +34,7 @@ import type { OAuthClientDocument } from '../models/oauth-client.js';
 
 const GRANT_CLIENT_CREDENTIALS = 'client_credentials';
 const GRANT_AUTHORIZATION_CODE = 'authorization_code';
+const GRANT_PASSWORD = 'password';
 const GOOGLE_SCOPE = ['openid', 'email', 'profile'];
 
 function randomToken(): string {
@@ -192,11 +194,11 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
   // --- User login flow (RQ-0001: Google SSO, OIDC Authorization Code + PKCE) ---
 
   /**
-   * Load + validate the consumer client and its tenant for the user-login (`authorization_code`)
-   * grant. Mirrors the client-credentials checks: tenant active + OAuth enabled, and the grant
+   * Load + validate a client and its tenant for a user-token grant (`authorization_code` or
+   * `password`). Mirrors the client-credentials checks: tenant active + OAuth enabled, and the grant
    * permitted by both tenant and client.
    */
-  async function loadUserFlowClient(models: ModelsBucket, clientId: string): Promise<{
+  async function loadFlowClient(models: ModelsBucket, clientId: string, grantType: string): Promise<{
     client: OAuthClientDocument;
     tenant: TenantDocument;
   }> {
@@ -204,8 +206,8 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     if (!client) {
       throw new InvalidClientError('Client not found');
     }
-    if (!client.grantTypes.includes(GRANT_AUTHORIZATION_CODE)) {
-      throw new UnauthorizedClientError('Authorization code grant not allowed for client');
+    if (!client.grantTypes.includes(grantType)) {
+      throw new UnauthorizedClientError(`Grant ${grantType} not allowed for client`);
     }
 
     const tenant = await models.Tenant.findOne({ _id: client.tenantId, status: 'active' }).lean().exec() as TenantDocument | null;
@@ -217,8 +219,8 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       throw new UnauthorizedClientError('Tenant not configured for OAuth');
     }
     const tenantGrants = new Set(oauthConfig.allowedGrantTypes ?? []);
-    if (!tenantGrants.has(GRANT_AUTHORIZATION_CODE)) {
-      throw new UnauthorizedClientError('Authorization code grant not enabled for tenant');
+    if (!tenantGrants.has(grantType)) {
+      throw new UnauthorizedClientError(`Grant ${grantType} not enabled for tenant`);
     }
     return { client, tenant };
   }
@@ -237,7 +239,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     const idp = getGoogleIdp();
     const connection = await deps.getMasterConnection();
     const models = deps.makeModels(connection);
-    const { client } = await loadUserFlowClient(models, input.clientId);
+    const { client } = await loadFlowClient(models, input.clientId, GRANT_AUTHORIZATION_CODE);
 
     // The redirect_uri MUST be pre-registered on the client (open-redirect / token-theft guard).
     if (!client.redirectUris?.includes(input.redirectUri)) {
@@ -346,7 +348,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       throw new InvalidGrantError('Authorization has no established identity');
     }
 
-    const { client } = await loadUserFlowClient(models, record.clientId);
+    const { client } = await loadFlowClient(models, record.clientId, GRANT_AUTHORIZATION_CODE);
 
     // Single-use: consume the code before issuing, so a replay cannot mint a second token.
     record.status = 'consumed';
@@ -359,6 +361,56 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       email: record.email,
       sub: record.sub,
       scope: record.scope ?? []
+    });
+  }
+
+  async function issuePasswordToken(input: PasswordGrantInput): Promise<UserTokenResponse> {
+    if (!input.username || !input.password) {
+      throw new InvalidRequestError('username and password are required');
+    }
+    const connection = await deps.getMasterConnection();
+    const models = deps.makeModels(connection);
+    const { client } = await loadFlowClient(models, input.clientId, GRANT_PASSWORD);
+
+    const email = input.username.trim().toLowerCase();
+    const user = await models.User.findOne({ tenantId: client.tenantId, email }).exec();
+    const now = nowFn();
+
+    // Uniform failure for unknown email vs wrong password — no user enumeration.
+    const genericDenied = () => new InvalidGrantError('Invalid credentials');
+
+    if (!user || user.status === 'disabled') {
+      throw genericDenied();
+    }
+    // Temporal brute-force lockout.
+    if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
+      throw new InvalidGrantError('Account is temporarily locked');
+    }
+
+    if (!verifySecret(input.password, user.passwordHash)) {
+      user.failedAttempts = (user.failedAttempts ?? 0) + 1;
+      if (user.failedAttempts >= CONFIG.auth.password.maxFailedAttempts) {
+        user.lockedUntil = new Date(now.getTime() + CONFIG.auth.password.lockoutMinutes * 60 * 1000);
+        user.failedAttempts = 0;
+        deps.logger?.info?.({ tenantId: client.tenantId, userId: user._id }, 'user locked after failed logins');
+      }
+      await user.save();
+      throw genericDenied();
+    }
+
+    // Success: clear the brute-force counters.
+    if (user.failedAttempts || user.lockedUntil) {
+      user.failedAttempts = 0;
+      user.lockedUntil = null;
+      await user.save();
+    }
+
+    return issueUserTokens(models, {
+      client,
+      tenantId: client.tenantId,
+      email: user.email,
+      sub: user._id, // the stable subject id
+      scope: []
     });
   }
 
@@ -387,7 +439,12 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       throw new InvalidGrantError('Session is revoked or expired');
     }
 
-    const { client } = await loadUserFlowClient(models, tokenDoc.clientId);
+    // Refresh is grant-agnostic — the client was already vetted at the original login. Just confirm
+    // it still exists (audience needed to re-mint); don't require a specific login grant here.
+    const client = await models.OAuthClient.findById(tokenDoc.clientId).lean().exec() as OAuthClientDocument | null;
+    if (!client) {
+      throw new InvalidGrantError('Client no longer exists');
+    }
     const email = (session.context as { email?: string } | null)?.email ?? undefined;
     const sub = tokenDoc.subject;
     if (!sub) {
@@ -558,6 +615,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     startAuthorization,
     handleGoogleCallback,
     issueAuthorizationCodeToken,
+    issuePasswordToken,
     refreshUserToken,
     revokeUserToken
   };

@@ -9,7 +9,7 @@ import {
 
 const router = express.Router();
 
-const SUPPORTED_GRANTS = new Set(['client_credentials', 'authorization_code', 'refresh_token']);
+const SUPPORTED_GRANTS = new Set(['client_credentials', 'authorization_code', 'refresh_token', 'password']);
 
 router.post('/token', async (req: Request, res: Response) => {
   const grantType = (req.body?.grant_type ?? req.query?.grant_type) as string | undefined;
@@ -26,6 +26,9 @@ router.post('/token', async (req: Request, res: Response) => {
     }
     if (grantType === 'authorization_code') {
       return await handleAuthorizationCode(req, res);
+    }
+    if (grantType === 'password') {
+      return await handlePasswordGrant(req, res);
     }
     return await handleRefreshToken(req, res);
   } catch (error: any) {
@@ -112,6 +115,15 @@ async function handleAuthorizationCode(req: Request, res: Response) {
     codeVerifier: String(req.body?.code_verifier ?? ''),
     clientId: String(req.body?.client_id ?? ''),
     redirectUri: String(req.body?.redirect_uri ?? '')
+  });
+  return res.status(200).json(userTokenBody(token));
+}
+
+async function handlePasswordGrant(req: Request, res: Response) {
+  const token = await oauthServer.issuePasswordToken({
+    username: String(req.body?.username ?? ''),
+    password: String(req.body?.password ?? ''),
+    clientId: String(req.body?.client_id ?? '')
   });
   return res.status(200).json(userTokenBody(token));
 }

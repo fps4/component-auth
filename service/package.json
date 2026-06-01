@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "start:prod": "NODE_ENV=production node dist/server.js",
+    "manage-users": "tsx scripts/manage-users.ts",
     "test": "vitest"
   },
   "dependencies": {

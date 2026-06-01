@@ -77,6 +77,16 @@ The `access_token` is an RS256 JWT carrying **`email`**, the stable Google **`su
 `sub` claim), **`iss`**, the consumer-bound **`aud`** (the client's configured `audience`), and
 **`exp`** + `iat` — verifiable via [`/.well-known/jwks.json`](#get-well-knownjwksjson).
 
+### `grant_type=password` (local login — RQ-0002)
+
+Email + password login against component-auth's own credential store, for tenants that enable the
+**local** IdP. Issues the same user token shape as the Google flow.
+
+- `Content-Type: application/x-www-form-urlencoded`
+- Body parameters: `grant_type=password`, `username` (the email), `password`, `client_id` (must allow the `password` grant and have an `audience`).
+- Response: same shape as `authorization_code`.
+- Bad email and bad password return the **same** `invalid_grant` (no user enumeration); too many failures temporarily **lock** the account.
+
 ### `grant_type=refresh_token`
 
 Rotates a user token. The presented refresh token is single-use; a fresh access + refresh pair is
@@ -134,6 +144,38 @@ Revoke a refresh token and its session (RFC 7009). Always `200`, even for an unk
 
 Revoking cascades to the session, so any sibling refresh token is also dead. Already-issued access
 JWTs remain valid until `exp` (≤ 15 min) — they are stateless and not checked against the store.
+
+---
+
+## `POST /v1/tenants/{tenantId}/register`
+
+Self-service local-credential registration (RQ-0002). Creates a user under a tenant that has the
+**local** IdP enabled. Login is the separate `password` grant; registration does not return a token.
+
+### Request Body
+
+```json
+{ "email": "reviewer@example.com", "password": "at-least-10-chars" }
+```
+
+### Response (`201`)
+
+```json
+{ "id": "f3ede70f-...", "email": "reviewer@example.com", "tenantId": "tenant-local" }
+```
+
+`id` is the stable subject id (the token `sub` at login).
+
+### Errors
+
+- `400 invalid_email` / `400 weak_password` – fails validation (password shorter than the configured minimum).
+- `400 local_idp_disabled` – tenant has not enabled the local IdP / `password` grant.
+- `404 tenant_not_found` – tenant missing or inactive.
+- `409 email_taken` – an account with this email already exists for the tenant.
+- `429 slow_down` – per-tenant registration rate limit exceeded.
+
+> **Password reset** has no email channel yet: an operator resets credentials via the
+> `service/scripts/manage-users.ts` CLI (`set-password`, `lock`, `unlock`, `disable`).
 
 ---
 
