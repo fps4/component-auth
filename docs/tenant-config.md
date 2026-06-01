@@ -209,6 +209,25 @@ npm run manage-users -- set-password  --tenant=tenant-local --email=u@x.test --p
 npm run manage-users -- lock|unlock|disable|enable|delete --tenant=tenant-local --email=u@x.test
 ```
 
+## Bulk provisioning via seed config (RQ-0004)
+
+For more than a one-off tenant, use the **seed config** instead of hand-running DB inserts. Copy the
+committed template to a gitignored real file, fill it in, and run the idempotent loader:
+
+```bash
+cp config/seed.example.yaml config/seed.yaml     # gitignored; never committed
+# set referenced secrets in the environment / .env, e.g. SEED_DEMO_PASSWORD, SEED_ADMIN_PASSWORD
+cd service
+npm run seed                                      # validates, then upserts tenants/clients + adds users
+```
+
+The file lists tenants, their OAuth clients (with `audience`), and local users; passwords/secrets are
+`${ENV_VAR}` references resolved at run time and stored scrypt-hashed. Re-running upserts tenants and
+clients and **leaves existing users untouched** (use `npm run manage-users set-password` to change a
+password). The loader is operator-run against the database — there is **no HTTP seeding endpoint**
+([ADR-0003](decisions/0003-seed-config-not-admin-api.md)). The loader reads `MONGO_URI`, so run it
+where it can reach the target Mongo (locally against the published port, or inside the docker network).
+
 ## Operational Tips
 
 - Keep tenant configuration changes in version control (e.g., infrastructure repo) or via migration scripts to track history.

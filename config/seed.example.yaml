@@ -1,0 +1,51 @@
+# Seed config TEMPLATE (RQ-0004). Copy to config/seed.yaml (gitignored) and fill in real values,
+# then run from service/:  npm run seed
+#
+# Idempotent: tenants + clients are upserted on every run; existing users are left untouched
+# (insert-if-absent), so a re-run never resets a password. Use `npm run manage-users set-password`
+# to change a password.
+#
+# Passwords / secrets: prefer ${ENV_VAR} references (resolved from the environment / .env at run time)
+# over inline plaintext, so this file — even the gitignored real one — need not hold raw credentials.
+
+tenants:
+  - id: demo
+    name: Demo Tenant
+    status: active
+    allowedOrigins:
+      - http://localhost:3000
+    oauth:
+      enabled: true
+      allowedGrantTypes: [password]      # local email/password login (RQ-0002)
+      allowedScopes: []
+      idp: { provider: local }           # required when the tenant has users
+      limits: { tokensPerMinute: 200 }
+    clients:
+      - id: demo-web
+        name: Demo Web
+        grantTypes: [password]
+        audience: demo-workspace         # REQUIRED for password/authorization_code — becomes the token `aud`
+        redirectUris: []
+        isConfidential: false
+    users:
+      - email: demo@fps4.nl
+        password: ${SEED_DEMO_PASSWORD}  # set SEED_DEMO_PASSWORD in the environment / .env
+        status: active
+      - email: admin@fps4.nl
+        password: ${SEED_ADMIN_PASSWORD} # "admin" is just a labelled user — component-auth has no role concept
+        status: active
+
+  # A second tenant can be added later, e.g. a machine-token (client-credentials) consumer:
+  # - id: telemetry
+  #   name: Telemetry Platform
+  #   status: active
+  #   oauth:
+  #     enabled: true
+  #     allowedGrantTypes: [client_credentials]
+  #     allowedScopes: [telemetry:read, telemetry:write]
+  #   clients:
+  #     - id: telemetry-ingest
+  #       grantTypes: [client_credentials]
+  #       scopes: [telemetry:write]
+  #       isConfidential: true
+  #       secret: ${TELEMETRY_CLIENT_SECRET}
