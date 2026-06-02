@@ -18,6 +18,7 @@ tenants:
       enabled: true
       allowedGrantTypes: [password]      # local email/password login (RQ-0002)
       allowedScopes: []
+      allowedRoles: [tenant_admin, member]  # RQ-0005: optional role vocabulary; empty/omitted = any role
       idp: { provider: local }           # required when the tenant has users
       limits: { tokensPerMinute: 200 }
     clients:
@@ -31,9 +32,14 @@ tenants:
       - email: demo@fps4.nl
         password: ${SEED_DEMO_PASSWORD}  # set SEED_DEMO_PASSWORD in the environment / .env
         status: active
+        roles: [member]                  # RQ-0005: coarse roles → token `roles` claim; consumers map to permissions
       - email: admin@fps4.nl
-        password: ${SEED_ADMIN_PASSWORD} # "admin" is just a labelled user — component-auth has no role concept
+        password: ${SEED_ADMIN_PASSWORD} # component-auth carries roles but does not enforce them
         status: active
+        roles: [tenant_admin]
+        # NOTE: re-running the seed leaves EXISTING users untouched (insert-if-absent), so adding/changing
+        # roles here only affects NEW users. To change roles on an existing user, use:
+        #   npm run manage-users -- set-roles --tenant=<id> --email=<e> --roles=tenant_admin,member
 
   # A second tenant can be added later, e.g. a machine-token (client-credentials) consumer:
   # - id: telemetry

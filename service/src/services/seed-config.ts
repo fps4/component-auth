@@ -19,12 +19,14 @@ export interface SeedUser {
   email: string;
   password: string;
   status?: 'active' | 'locked' | 'disabled';
+  roles?: string[];
 }
 
 export interface SeedTenantOAuth {
   enabled: boolean;
   allowedGrantTypes: string[];
   allowedScopes?: string[];
+  allowedRoles?: string[];
   idp?: { provider: 'google' | 'local' };
   limits?: { tokensPerMinute?: number; refreshTokens?: number; clientCap?: number };
 }
@@ -86,6 +88,8 @@ export function parseSeedConfig(raw: unknown, env: Record<string, string | undef
     }
     const grants = new Set(t.oauth.allowedGrantTypes as string[]);
     const idpProvider = isObject(t.oauth.idp) ? t.oauth.idp.provider : undefined;
+    const allowedRoles = Array.isArray(t.oauth.allowedRoles) ? (t.oauth.allowedRoles as string[]) : [];
+    const roleAllowlist = allowedRoles.length ? new Set(allowedRoles) : null;
 
     const clients: SeedClient[] = Array.isArray(t.clients) ? t.clients.map((c, ci) => {
       const cw = `${where}.clients[${ci}]`;
@@ -113,7 +117,15 @@ export function parseSeedConfig(raw: unknown, env: Record<string, string | undef
       if (typeof u.password !== 'string' || !u.password) throw new SeedConfigError(`${uw} (${u.email}) needs a password`);
       const password = interpolate(u.password, env);
       if (!password) throw new SeedConfigError(`${uw} (${u.email}) resolved to an empty password`);
-      return { email: u.email.trim().toLowerCase(), password, status: (u.status as SeedUser['status']) ?? 'active' };
+      const roles = Array.isArray(u.roles) ? (u.roles as unknown[]).map(String) : [];
+      if (roleAllowlist) {
+        for (const role of roles) {
+          if (!roleAllowlist.has(role)) {
+            throw new SeedConfigError(`${uw} (${u.email}) has role "${role}" not in tenant ${t.id} oauth.allowedRoles`);
+          }
+        }
+      }
+      return { email: u.email.trim().toLowerCase(), password, status: (u.status as SeedUser['status']) ?? 'active', roles };
     }) : [];
 
     if (users.length && (!grants.has('password') || idpProvider !== 'local')) {
@@ -129,6 +141,7 @@ export function parseSeedConfig(raw: unknown, env: Record<string, string | undef
         enabled: t.oauth.enabled,
         allowedGrantTypes: t.oauth.allowedGrantTypes as string[],
         allowedScopes: Array.isArray(t.oauth.allowedScopes) ? (t.oauth.allowedScopes as string[]) : [],
+        allowedRoles,
         idp: idpProvider ? { provider: idpProvider as 'google' | 'local' } : undefined,
         limits: isObject(t.oauth.limits) ? (t.oauth.limits as SeedTenantOAuth['limits']) : undefined
       },

@@ -13,7 +13,9 @@ It issues two kinds of JWT, both RS256-signed and verifiable via a published JWK
 - **Machine tokens** — `client_credentials` grant; claims `tid` / `cid` / `sid` / `scope`.
 - **User identity tokens** — Google SSO via OIDC Authorization Code + PKCE (RQ-0001) **or** a local
   email/password IdP (RQ-0002); claims `email` + a stable `sub` + `iss` + a consumer-bound `aud` +
-  `exp`/`iat`. Both IdPs issue the same token; the IdP is a per-tenant choice.
+  `exp`/`iat`, plus an optional coarse **`roles`** array (RQ-0005) that consumers map to permissions
+  (component-auth asserts roles but does not enforce them — ADR-0005). Both IdPs issue the same token;
+  the IdP is a per-tenant choice.
 
 ## Directory map
 

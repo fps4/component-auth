@@ -48,4 +48,34 @@ describe('parseSeedConfig (RQ-0004)', () => {
       users: [{ email: 'not-an-email', password: 'correct-horse-battery' }] }] };
     expect(() => parseSeedConfig(bad, {})).toThrowError(/valid email/);
   });
+
+  // RQ-0005 — user roles
+  it('parses user roles and the tenant allowedRoles vocabulary', () => {
+    const cfg = parseSeedConfig({ tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['password'], idp: { provider: 'local' }, allowedRoles: ['tenant_admin', 'member'] },
+      users: [{ email: 'a@x.test', password: 'correct-horse-battery', roles: ['tenant_admin'] }] }] }, {});
+    expect(cfg.tenants[0].oauth.allowedRoles).toEqual(['tenant_admin', 'member']);
+    expect(cfg.tenants[0].users[0].roles).toEqual(['tenant_admin']);
+  });
+
+  it('defaults roles to an empty array when omitted', () => {
+    const cfg = parseSeedConfig({ tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['password'], idp: { provider: 'local' } },
+      users: [{ email: 'a@x.test', password: 'correct-horse-battery' }] }] }, {});
+    expect(cfg.tenants[0].users[0].roles).toEqual([]);
+  });
+
+  it('rejects a user role not in a non-empty tenant allowedRoles list', () => {
+    const bad = { tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['password'], idp: { provider: 'local' }, allowedRoles: ['member'] },
+      users: [{ email: 'a@x.test', password: 'correct-horse-battery', roles: ['superuser'] }] }] };
+    expect(() => parseSeedConfig(bad, {})).toThrowError(/superuser/);
+  });
+
+  it('accepts any role when allowedRoles is empty or absent', () => {
+    const cfg = parseSeedConfig({ tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['password'], idp: { provider: 'local' } },
+      users: [{ email: 'a@x.test', password: 'correct-horse-battery', roles: ['anything-goes'] }] }] }, {});
+    expect(cfg.tenants[0].users[0].roles).toEqual(['anything-goes']);
+  });
 });

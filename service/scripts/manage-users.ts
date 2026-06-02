@@ -5,6 +5,7 @@
  *
  *   tsx scripts/manage-users.ts create       --tenant=<id> --email=<e> --password=<p>
  *   tsx scripts/manage-users.ts set-password  --tenant=<id> --email=<e> --password=<p>
+ *   tsx scripts/manage-users.ts set-roles     --tenant=<id> --email=<e> --roles=a,b   (RQ-0005; "" clears)
  *   tsx scripts/manage-users.ts lock|unlock|disable|enable|delete --tenant=<id> --email=<e>
  *
  * MONGO_URI / MONGO_DB_NAME come from the environment (or .env), same as the service.
@@ -30,7 +31,7 @@ async function main() {
   const tenantId = args.get('tenant');
   const email = args.get('email') ? normalizeEmail(args.get('email')!) : undefined;
   if (!command || !tenantId || !email) {
-    console.error('Usage: manage-users <create|set-password|lock|unlock|disable|enable|delete> --tenant=<id> --email=<e> [--password=<p>]');
+    console.error('Usage: manage-users <create|set-password|set-roles|lock|unlock|disable|enable|delete> --tenant=<id> --email=<e> [--password=<p>] [--roles=a,b]');
     process.exitCode = 2;
     return;
   }
@@ -59,6 +60,16 @@ async function main() {
         { $set: { passwordHash: hashSecret(password), passwordUpdatedAt: now, failedAttempts: 0, lockedUntil: null, updatedAt: now } }
       ).exec();
       report(result.matchedCount, email, 'password reset');
+      break;
+    }
+    case 'set-roles': {
+      const raw = args.get('roles') ?? '';
+      const roles = raw.split(',').map((r) => r.trim()).filter(Boolean);
+      const result = await User.updateOne(
+        { tenantId, email },
+        { $set: { roles, updatedAt: now } }
+      ).exec();
+      report(result.matchedCount, email, `roles set to [${roles.join(', ')}]`);
       break;
     }
     case 'lock':

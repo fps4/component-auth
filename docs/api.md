@@ -77,6 +77,13 @@ The `access_token` is an RS256 JWT carrying **`email`**, the stable Google **`su
 `sub` claim), **`iss`**, the consumer-bound **`aud`** (the client's configured `audience`), and
 **`exp`** + `iat` — verifiable via [`/.well-known/jwks.json`](#get-well-knownjwksjson).
 
+When the authenticated user has roles, the token also carries a **`roles`** claim — a JSON array of
+coarse, tenant-scoped role strings (RQ-0005), **omitted** when the user has none. Roles are advisory
+identity assertions: component-auth does **not** enforce them — each consuming product maps roles to
+its own permissions ([ADR-0005](decisions/0005-decentralized-authorization.md)). The claim is additive
+(a verifier that ignores it is unaffected) and is re-read from the user store on every issuance
+(including `refresh_token`), so a role change applies on the next refresh.
+
 ### `grant_type=password` (local login — RQ-0002)
 
 Email + password login against component-auth's own credential store, for tenants that enable the

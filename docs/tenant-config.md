@@ -209,6 +209,40 @@ npm run manage-users -- set-password  --tenant=tenant-local --email=u@x.test --p
 npm run manage-users -- lock|unlock|disable|enable|delete --tenant=tenant-local --email=u@x.test
 ```
 
+## User roles (RQ-0005)
+
+A local user can carry a list of **coarse, tenant-scoped roles** that are stamped into the user
+token's **`roles`** claim (a JSON array of strings). component-auth **asserts** roles but does **not**
+enforce them — each consuming product maps roles to its own permissions
+([ADR-0005](decisions/0005-decentralized-authorization.md)). The claim is omitted when a user has no
+roles, and is re-read on every token issuance (including refresh), so a change applies on next refresh.
+
+Optionally declare a per-tenant **`allowedRoles`** vocabulary (mirrors `allowedScopes`). When non-empty
+it is validated at seed time — a user role outside the list is rejected; when empty/absent, any role
+string is accepted.
+
+```js
+db.tenants.updateOne(
+  { _id: "tenant-local" },
+  { $set: { "oauth.allowedRoles": ["tenant_admin", "member"] } }   // optional vocabulary
+);
+```
+
+Roles are provisioned by the operator (no HTTP API, [ADR-0003](decisions/0003-seed-config-not-admin-api.md)):
+
+- **Seed config:** add `roles: [..]` under a user in `config/seed.yaml` (applies to **newly created**
+  users; re-running the seed leaves existing users untouched).
+- **CLI (existing users):**
+
+  ```bash
+  cd service
+  npm run manage-users -- set-roles --tenant=tenant-local --email=u@x.test --roles=tenant_admin,member
+  npm run manage-users -- set-roles --tenant=tenant-local --email=u@x.test --roles=   # clears all roles
+  ```
+
+A consumer reads `roles` from the verified token and authorizes accordingly; it never calls back to
+component-auth to check a permission.
+
 ## Bulk provisioning via seed config (RQ-0004)
 
 For more than a one-off tenant, use the **seed config** instead of hand-running DB inserts. Copy the

@@ -17,6 +17,7 @@ export interface UserDocument extends Document {
   passwordHash: string;
   emailVerified: boolean;   // no verification channel yet (RQ-0002); informational
   status: 'active' | 'locked' | 'disabled';
+  roles: string[];          // coarse, tenant-scoped roles stamped into the token `roles` claim (RQ-0005)
   failedAttempts: number;
   lockedUntil?: Date | null;
   passwordUpdatedAt: Date;
@@ -31,6 +32,7 @@ const userSchema = new mongoose.Schema<UserDocument>({
   passwordHash: { type: String, required: true },
   emailVerified: { type: Boolean, default: false },
   status: { type: String, enum: ['active', 'locked', 'disabled'], default: 'active', index: true },
+  roles: { type: [String], default: [] },
   failedAttempts: { type: Number, default: 0 },
   lockedUntil: { type: Date, default: null },
   passwordUpdatedAt: { type: Date, default: Date.now },

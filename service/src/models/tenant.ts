@@ -20,6 +20,7 @@ export interface TenantOAuthConfig {
   enabled?: boolean;
   allowedGrantTypes?: string[];
   allowedScopes?: string[];
+  allowedRoles?: string[];   // optional per-tenant vocabulary for user roles (RQ-0005); empty = any
   limits?: TenantOAuthLimits;
   idp?: TenantIdpConfig | null;
 }
@@ -54,6 +55,7 @@ const oauthConfigSchema = new Schema<TenantOAuthConfig>({
   enabled: { type: Boolean, default: false },
   allowedGrantTypes: { type: [String], default: [] },
   allowedScopes: { type: [String], default: [] },
+  allowedRoles: { type: [String], default: [] },
   limits: { type: oauthLimitsSchema, default: undefined },
   idp: { type: idpConfigSchema, default: undefined }
 }, { _id: false });

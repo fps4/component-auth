@@ -360,7 +360,8 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       tenantId: record.tenantId,
       email: record.email,
       sub: record.sub,
-      scope: record.scope ?? []
+      scope: record.scope ?? [],
+      roles: await loadUserRoles(models, record.sub)
     });
   }
 
@@ -410,7 +411,8 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       tenantId: client.tenantId,
       email: user.email,
       sub: user._id, // the stable subject id
-      scope: []
+      scope: [],
+      roles: Array.isArray(user.roles) ? user.roles : []
     });
   }
 
@@ -461,6 +463,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       email,
       sub,
       scope: tokenDoc.scope ?? [],
+      roles: await loadUserRoles(models, sub),
       session
     });
   }
@@ -487,6 +490,15 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     deps.logger?.info?.({ clientId: tokenDoc.clientId, sessionId: tokenDoc.sessionId }, 'revoked user session');
   }
 
+  /** Current coarse roles for a local user by stable subject id (RQ-0005). Federated (Google) users
+   *  have no local record → no roles. Re-read on every issuance so role changes apply on next refresh. */
+  async function loadUserRoles(models: ModelsBucket, sub: string): Promise<string[]> {
+    const userModel = models.User as { findById?: (id: string) => { lean: () => { exec: () => Promise<unknown> } } };
+    if (!userModel?.findById) return [];
+    const user = (await userModel.findById(sub).lean().exec()) as { roles?: string[] } | null;
+    return Array.isArray(user?.roles) ? user.roles : [];
+  }
+
   /**
    * Mint an access JWT + a rotating refresh token for a verified user identity, persisting their
    * metadata and (on first issue) the session. Reused by the authorization-code and refresh grants.
@@ -499,6 +511,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       email?: string;
       sub: string;
       scope: string[];
+      roles?: string[];
       session?: { _id: string; expiresAt: Date };
     }
   ): Promise<UserTokenResponse> {
@@ -535,6 +548,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       email: args.email,
       sub: args.sub,
       scope: args.scope,
+      roles: args.roles,
       issuedAt,
       expiresAt: accessExp
     });
@@ -582,13 +596,15 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     };
   }
 
-  /** Build the user identity JWT maestro verifies: RS256, `email` + `sub` + `iss` + `aud` + `exp`/`iat`. */
+  /** Build the user identity JWT maestro verifies: RS256, `email` + `sub` + `iss` + `aud` + `exp`/`iat`,
+   *  plus an optional coarse `roles` array (RQ-0005) — additive; consumers that don't read it ignore it. */
   async function signUserAccessToken(args: {
     jti: string;
     audience: string;
     email?: string;
     sub: string;
     scope: string[];
+    roles?: string[];
     issuedAt: Date;
     expiresAt: Date;
   }): Promise<string> {
@@ -598,6 +614,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     const payload: Record<string, unknown> = {};
     if (args.email) payload.email = args.email;
     if (args.scope.length) payload.scope = args.scope.join(' ');
+    if (args.roles && args.roles.length) payload.roles = args.roles;
 
     return new SignJWT(payload)
       .setProtectedHeader({ alg: 'RS256', kid: keyPair.kid, typ: 'JWT' })

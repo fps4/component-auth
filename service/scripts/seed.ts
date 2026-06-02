@@ -51,7 +51,8 @@ async function main() {
       { $set: {
           name: t.name, status: t.status, allowedOrigins: t.allowedOrigins,
           oauth: { enabled: t.oauth.enabled, allowedGrantTypes: t.oauth.allowedGrantTypes,
-                   allowedScopes: t.oauth.allowedScopes, idp: t.oauth.idp, limits: t.oauth.limits },
+                   allowedScopes: t.oauth.allowedScopes, allowedRoles: t.oauth.allowedRoles,
+                   idp: t.oauth.idp, limits: t.oauth.limits },
           updatedAt: now
       } },
       { upsert: true }
@@ -74,7 +75,7 @@ async function main() {
       if (existing) { usersSkipped++; continue; } // never clobber an existing account on re-run
       await User.create({
         tenantId: t.id, email: u.email, passwordHash: hashSecret(u.password),
-        status: u.status, passwordUpdatedAt: now
+        status: u.status, roles: u.roles ?? [], passwordUpdatedAt: now
       });
       usersCreated++;
     }

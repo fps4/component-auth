@@ -123,7 +123,8 @@ describe('Local password IdP — login (RQ-0002)', () => {
     seedLocalTenant(store);
     store.users.push({
       _id: 'user-sub-1', tenantId: 'tenant-local', email: 'reviewer@fps4.test',
-      passwordHash: hashSecret(password), status: 'active', failedAttempts: 0, lockedUntil: null
+      passwordHash: hashSecret(password), status: 'active', failedAttempts: 0, lockedUntil: null,
+      roles: ['tenant_admin', 'member']
     });
     server = createOAuthServer(makeDeps(store, () => fixedNow));
   });
@@ -137,7 +138,18 @@ describe('Local password IdP — login (RQ-0002)', () => {
     expect(payload.email).toBe('reviewer@fps4.test');
     expect(payload.sub).toBe('user-sub-1');
     expect(payload.aud).toBe('maestro-workspace');
+    expect(payload.roles).toEqual(['tenant_admin', 'member']); // RQ-0005 coarse roles claim
     expect(token.refreshToken).toBeTruthy();
+  });
+
+  it('omits the roles claim when the user has no roles', async () => {
+    store.users[0].roles = [];
+    const token = await server.issuePasswordToken({ username: 'reviewer@fps4.test', password, clientId: 'client-local' });
+    const publicKey = await importSPKI(signingPublicPem, 'RS256');
+    const { payload } = await jwtVerify(token.accessToken, publicKey, {
+      issuer: CONFIG.auth.jwtIssuer, audience: 'maestro-workspace', requiredClaims: ['exp'], currentDate: fixedNow
+    });
+    expect(payload.roles).toBeUndefined();
   });
 
   it('rejects a wrong password and increments the failure counter', async () => {
