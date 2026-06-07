@@ -1,7 +1,7 @@
 name: Definition of Done
 
-# The quality gate maestro reads before opening the merge gate (ADR-0016 / onboarding step 3).
-# Runs on GitHub-hosted runners — independent of the ds1 deploy host. Build + test must be green.
+# The quality gate maestro reads before opening the merge gate.
+# Runs on GitHub-hosted runners — independent of the deploy host. Build + test must be green.
 
 on:
   pull_request:

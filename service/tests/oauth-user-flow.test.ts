@@ -149,7 +149,7 @@ describe('OAuth server – Google SSO user flow (RQ-0001)', () => {
     expect(token.expiresIn).toBe(CONFIG.oauth.accessTokenTtlSec);
     expect(token.refreshToken).toBeTruthy();
 
-    // Verify exactly as maestro's edgeauth.py does: RS256 via the published key, iss + aud + exp enforced.
+    // Verify exactly as a consumer's authenticated edge does: RS256 via the published key, iss + aud + exp enforced.
     // `currentDate` pins jose's clock to the issuance time (the suite issues at a fixed `now`).
     const publicKey = await importSPKI(signingPublicPem, 'RS256');
     const { payload } = await jwtVerify(token.accessToken, publicKey, {

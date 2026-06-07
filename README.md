@@ -1,4 +1,4 @@
-# Component Auth
+# component-auth
 
 Multi-tenant authentication building blocks shared across products. The project ships a standalone service for session management plus a lightweight SDK for consumers.
 
@@ -131,6 +131,7 @@ Docs follow a two-plane structure — see [`docs/README.md`](docs/README.md) for
 - [`docs/guides/deployment.md`](docs/guides/deployment.md) – how the service is deployed.
 - [`docs/product/`](docs/product) – the `RQ-*` functional specs (e.g. `RQ-0001` adds user identity via Google SSO, issued as a verifiable JWT).
 - [`docs/design/decisions/`](docs/design/decisions) – architecture decision records (ADRs).
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) – how to build & test the packages.
 - `tests/` – manual harness + scripts for integration checks on deployed environments.
 
 ## Deployments

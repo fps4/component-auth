@@ -1,37 +1,43 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# DISABLED — automated deploys via self-hosted runners are turned off.
+# Automated CI deploys are OFF. component-auth deploys MANUALLY over SSH to a
+# Docker host — see docs/guides/deployment.md for the runbook.
 #
-# component-auth now deploys MANUALLY to the ds1 lab docker host over SSH, the same
-# pattern the sibling fps4 stacks use (maestro, copilot):
-#
-#   export DOCKER_HOST=ssh://ds1
-#   docker compose --env-file docker/.env \
-#     -f docker/compose.yaml -f docker/compose.dev.yaml up -d --build
-#
-# (`docker/.env` is gitignored and holds the per-site secrets: GOOGLE_CLIENT_ID/SECRET,
-#  OAUTH_KEY_PASSPHRASE, the HTTPS AUTH_JWT_ISSUER, etc. — never committed.)
-#
-# See README.md ("Deployments") for the full runbook. This file is kept (fully
-# commented) rather than deleted so the runner-based flow can be restored if we move
-# back to CI-driven deploys; with no `on:` triggers below, GitHub Actions ignores it.
+# This workflow is intentionally manual-only (workflow_dispatch): it never runs on
+# push, so a docs or code merge never triggers a deploy. The self-hosted-runner
+# flow that previously drove deploys is preserved (commented) at the bottom so it
+# can be restored if the project moves back to CI-driven deploys.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# name: Deploy with Self-Hosted Runners
+name: Deploy (manual reference)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  info:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploys are manual
+        run: |
+          echo "component-auth deploys manually over SSH to a Docker host."
+          echo "See docs/guides/deployment.md for the runbook."
+
+# ── Preserved for restoration: the former self-hosted-runner deploy ──────────
+# Uncomment (and remove the manual-only block above) to restore CI-driven deploys.
 #
 # on:
 #   push:
 #     branches:
 #       - main
 #       - '**'
-#     # Docs / metadata changes must not redeploy the service (a docs PR merged to main would
-#     # otherwise rebuild PROD). Only changes to code or deploy assets trigger a deploy; a push whose
-#     # files all match these patterns is skipped. workflow_dispatch still allows a manual redeploy.
+#     # Docs / metadata changes must not redeploy the service. Only code or deploy
+#     # assets trigger a deploy; a push whose files all match these is skipped.
 #     paths-ignore:
 #       - '**.md'
 #       - 'docs/**'
 #       - 'LICENSE'
 #       - '.github/**'
-#   workflow_dispatch:   # allows manual redeploy via GitHub UI
+#   workflow_dispatch:
 #     inputs:
 #       environment:
 #         description: "Select environment (dev or prod)"
@@ -49,7 +55,6 @@
 #     steps:
 #       - name: Checkout code
 #         uses: actions/checkout@v4
-#
 #       - name: Deploy to DEV
 #         run: |
 #           echo "Deploying branch ${{ github.ref_name }} to DEV"
@@ -61,7 +66,6 @@
 #     steps:
 #       - name: Checkout code
 #         uses: actions/checkout@v4
-#
 #       - name: Deploy to PROD
 #         run: |
 #           echo "Deploying main branch to PROD"
