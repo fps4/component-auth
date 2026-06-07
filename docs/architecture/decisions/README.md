@@ -1,24 +1,16 @@
-# Architecture Decision Records
+# Architecture decision records
 
-This folder holds the Architecture Decision Records (ADRs) for `component-auth`.
-Each ADR captures one decision in the standard one-page format. This index page
-is navigation only and is not indexed in the workspace SpecIndex.
+This folder holds the architecture decision records (ADRs) for component-auth. Each ADR is a one-page record with three standard sections:
 
-## Conventions
+- **Context** — the forces and constraints behind the decision.
+- **Decision** — what was decided.
+- **Consequences** — what follows, including trade-offs.
 
-- One decision per file, named `NNNN-<slug>.md`, where `NNNN` is a four-digit sequence number assigned monotonically and `<slug>` is a lowercase, hyphen-separated summary of the decision.
-- Numbers are never reused; a superseded decision keeps its number and records the superseding ADR.
-- Each ADR carries a `maestro:` frontmatter block with `feature`, `kind: architecture_decision`, and a plain-language `summary`.
-- Each ADR body uses the standard sections: **Context**, **Decision**, **Consequences**, with optional **Trade-offs** and **Open questions**.
+## Naming
 
-## Template
-
-Use [`adr-template.md`](adr-template.md) as the starting point when adding a new
-decision record.
+ADR files are named `NNNN-<slug>.md`, where `NNNN` is a four-digit sequence number assigned in order and `<slug>` is lowercase and hyphen-separated.
 
 ## Index
 
-No decision records have been migrated into this folder yet. Decisions recorded
-elsewhere in the repository are moved here under the naming and format above as
-part of the live-tree audit. If a past decision has no record at all, raise the
-gap with the architect rather than reconstructing it.
+| ADR | Title | Status |
+|-----|-------|--------|
