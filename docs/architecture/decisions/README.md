@@ -29,3 +29,4 @@ ADR files are named `NNNN-<slug>.md`, where `NNNN` is a four-digit sequence numb
 
 | ADR | Title | Status |
 |-----|-------|--------|
+| [0001](0001-two-plane-documentation-information-architecture.md) | Adopt the two-plane documentation information architecture | Accepted |
