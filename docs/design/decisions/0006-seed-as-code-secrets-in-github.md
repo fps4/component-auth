@@ -15,12 +15,15 @@ related:
 a `config/seed.yaml` loaded by `npm run seed`. That file was **gitignored** and lived only on an
 operator's workstation; its secret *values* lived only in a gitignored `docker/.env`.
 
-This bit us. component-auth's auth state (tenants, clients, users) lives in MongoDB. When the ds1
-auto-deploy ([0007-era CI](../../guides/deployment.md)) first ran, a compose project-name change pointed
-the stack at a **fresh, empty** mongo volume — every tenant/client/user was gone. The records were not
-recoverable (passwords and client secrets are stored only as scrypt **hashes**, never plaintext), and
+This bit us. component-auth's auth state (tenants, clients, users) lives in MongoDB, and on ds1 that
+data was being **lost on every deploy** — the records are only scrypt **hashes** (unrecoverable), and
 the *definition* of who should exist lived only on a laptop. There was **no durable, off-host source of
 truth** from which to rebuild.
+
+(The true root cause of the data loss was a **mis-mounted mongo volume**, found later and fixed
+separately: the Bitnami image's `dbPath` is `/bitnami/mongodb`, but the volume was mounted at `/data/db`,
+so the real DB sat in the container's ephemeral layer and died with every container recreation. This ADR
+addresses the orthogonal problem it exposed — that there was no recoverable definition or secret backup.)
 
 The need surfaced as *"my secrets are gone — can we keep them in a cloud service, as a backup / fallback?
 is GitHub an option?"*
@@ -50,9 +53,10 @@ from both.** Concretely:
    `.sops.yaml` (it only lets you re-encrypt when adding values). Rotation/onboarding is one key, not N
    secrets. The runtime client secrets are *also* mirrored into the consuming repos' single
    `MAESTRO_RUNTIME_CLIENT_SECRET` Actions secret so those deploys agree (US-0086).
-4. **The mongo data volume is stable across deploys** — the deploy reconciles containers but never the
-   volume (`down` without `-v`), so steady-state data is no longer wiped. The one-time loss was the
-   project-rename, now fixed.
+4. **The mongo data actually persists across deploys** — the deploy reconciles containers but never the
+   volume (`down` without `-v`), AND the volume is now mounted at the Bitnami `dbPath`
+   (`/bitnami/mongodb`) so the DB really lands on it (fixed separately). Steady-state data is no longer
+   wiped — re-seeding is recovery, not routine.
 5. **Recovery = decrypt + re-seed** — `sops exec-env config/secrets.ds1.sops.yaml '… npm run seed'`
    decrypts with the master key and injects the values the committed `config/seed.yaml` references.
    Because the definition is in git and the values are in the git-committed encrypted file (unlockable
