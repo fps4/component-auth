@@ -1,0 +1,102 @@
+# Deploy component-auth to the ds1 host after a green Definition of Done on main.
+#
+# Runs on the shared org ds1 runner: a CONTAINERISED GitHub Actions runner with only the host Docker
+# socket mounted. So this job drives the host daemon purely through `docker` / `docker compose` — it
+# has NO Node and does NOT share a network with the deployed stack. Hence:
+#   * compose is invoked directly (the SSH/`DOCKER_HOST` runbook still works from a laptop);
+#   * health is read via `docker inspect` over the socket, NOT curl to a host port the runner can't reach
+#     (compose.prod.yaml defines the /health healthcheck this gate polls).
+#
+# Secrets never live in git (fps4 standard). config/ds1/.env is assembled at deploy time from the
+# committed non-secret base (config/ds1/.env.base) plus repo Actions secrets, written runner-local, and
+# removed in the always-cleanup step. The seed (tenants/clients/users — config/seed.yaml) stays an
+# operator step (RQ-0004): this pipeline ships the service, not the seed data.
+#
+# Optional repo Actions secrets (appended only when set — the ds1 SMOKE posture runs without them):
+#   OAUTH_KEY_PASSPHRASE   encrypts the RS256 signing keys at rest
+#   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI   enable Google SSO (password IdP
+#                                                                   works without them)
+name: deploy-ds1
+
+# Branch protection is unavailable on this plan, so the deploy is gated on the DoD itself: fire only
+# after "Definition of Done" completes on main, and only when it succeeded.
+on:
+  workflow_run:
+    workflows: ["Definition of Done"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Never let two deploys race on the same host; queue them, and don't cancel an in-flight deploy.
+concurrency:
+  group: deploy-ds1
+  cancel-in-progress: false
+
+env:
+  COMPOSE: docker compose -f docker/compose.yaml -f docker/compose.prod.yaml -p component-auth --env-file config/ds1/.env
+
+jobs:
+  deploy:
+    # Manual dispatch always deploys; the chained path only on a green DoD for a push to main.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: [self-hosted, ds1]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout the deployed commit
+        uses: actions/checkout@v4
+        with:
+          # workflow_run doesn't checkout the triggering commit by default — pin to the exact main SHA
+          # the DoD validated. Manual runs fall back to the ref.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Assemble config/ds1/.env (committed base + Actions secrets; runner-local)
+        env:
+          OAUTH_KEY_PASSPHRASE: ${{ secrets.OAUTH_KEY_PASSPHRASE }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+        run: |
+          umask 077
+          cp config/ds1/.env.base config/ds1/.env
+          {
+            [ -n "$OAUTH_KEY_PASSPHRASE" ] && echo "OAUTH_KEY_PASSPHRASE=$OAUTH_KEY_PASSPHRASE"
+            [ -n "$GOOGLE_CLIENT_ID" ] && echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
+            [ -n "$GOOGLE_CLIENT_SECRET" ] && echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET"
+            [ -n "$GOOGLE_REDIRECT_URI" ] && echo "GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT_URI"
+          } >> config/ds1/.env
+          [ -n "$OAUTH_KEY_PASSPHRASE" ] || echo "::warning::OAUTH_KEY_PASSPHRASE unset — signing keys stored unencrypted at rest (ds1 SMOKE)"
+          echo "Assembled config/ds1/.env ($(grep -c . config/ds1/.env) non-empty lines)"
+
+      - name: Build + deploy (compose against the mounted host daemon)
+        # The image build runs `npm run build && npm test`, so a type error or red test fails the deploy.
+        run: |
+          $COMPOSE build
+          $COMPOSE up -d --remove-orphans
+
+      - name: Wait for health (component-auth, via docker inspect over the socket)
+        run: |
+          ok=0
+          for i in $(seq 1 60); do            # up to ~5 min
+            s=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' component-auth 2>/dev/null || echo missing)
+            echo "component-auth: $s"
+            [ "$s" = "healthy" ] && { ok=1; break; }
+            [ "$s" = "missing" ] && { echo "::error::component-auth container not found"; break; }
+            sleep 5
+          done
+          docker logs --tail 20 component-auth 2>&1 | tail -20 || true
+          [ "$ok" = 1 ] || { echo "::error::component-auth did not become healthy"; exit 1; }
+
+      - name: Cleanup assembled secrets (always)
+        if: always()
+        run: rm -f config/ds1/.env
+
+      - name: Deployed revision
+        if: success()
+        run: echo "ds1 now running ${GITHUB_SHA::12} (from ${GITHUB_REF_NAME})"
