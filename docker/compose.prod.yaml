@@ -4,3 +4,12 @@ services:
       NODE_ENV: production
       LOG_LEVEL: info
       LOG_PRETTY: 'false'
+    # The CI deploy (deploy-ds1.yml) gates on this over the Docker socket — the runner can't reach a
+    # host port. Hits the service's own /health on the in-container port via node (no busybox/curl
+    # assumption). start_period covers boot; the image build is already green, this just waits to listen.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:7305/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s

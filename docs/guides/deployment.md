@@ -54,10 +54,22 @@ docker compose -f docker/compose.yaml -f docker/compose.dev.yaml ps
 
 The image build runs `npm run build && npm test`, so a type error or a red test **fails the deploy**.
 
-## CI-driven deploys (optional)
+## CI-driven deploys (ds1)
 
-A GitHub Actions self-hosted-runner workflow exists but is **disabled** — kept fully commented in
-`.github/workflows/deploy.yml` so it can be restored if the project moves back to CI-driven deploys.
+The default ds1 deploy is **automatic** (`.github/workflows/deploy-ds1.yml`), mirroring the other fps4
+stacks: a green **Definition of Done** on `main` chains into `deploy-ds1`, which runs on the shared
+`[self-hosted, ds1]` runner and drives the host Docker daemon over the mounted socket — `compose build`
++ `up -d`, then gates on the service's `/health` healthcheck via `docker inspect` (the runner has no
+host-port access). `workflow_dispatch` runs it on demand.
+
+- **Config:** the non-secret base is committed at `config/ds1/.env.base`; the workflow assembles
+  `config/ds1/.env` (base + Actions secrets) runner-local and deletes it afterwards.
+- **Secrets** (repo Actions secrets, appended only when set — the ds1 SMOKE posture runs without them):
+  `OAUTH_KEY_PASSPHRASE`, and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`.
+- **Seeding stays manual** (RQ-0004): the pipeline ships the service; provisioning tenants/clients/users
+  (`npm run seed` with `config/seed.yaml`) remains an operator step.
+
+The SSH / `DOCKER_HOST` runbook above still works for a laptop-driven deploy or a host without the runner.
 
 ## Verify
 
