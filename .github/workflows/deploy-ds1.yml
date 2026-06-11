@@ -78,6 +78,13 @@ jobs:
         # The image build runs `npm run build && npm test`, so a type error or red test fails the deploy.
         run: |
           $COMPOSE build
+          # Reconcile any prior stack before recreating. The services use fixed container_names, so a
+          # leftover container from the manual-SSH era (created under a different compose project) would
+          # otherwise collide on `up`. Bring our project down (KEEPING the data volume — no -v), then
+          # force-remove any leftover fixed-name containers. Idempotent: on a steady-state redeploy this
+          # is just a clean restart; the mongo data volume (component-auth_mongo_data) persists.
+          $COMPOSE down --remove-orphans || true
+          docker rm -f component-auth component-auth-mongo 2>/dev/null || true
           $COMPOSE up -d --remove-orphans
 
       - name: Wait for health (component-auth, via docker inspect over the socket)
