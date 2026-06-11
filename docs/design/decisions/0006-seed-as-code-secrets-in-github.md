@@ -1,5 +1,5 @@
 ---
-title: "0006: Seed definition in git, secret values in GitHub (a durable fallback)"
+title: "0006: Seed definition in git; secret values SOPS-encrypted in git, one master key in GitHub"
 status: accepted
 date: 2026-06-11
 related:
@@ -40,26 +40,33 @@ from both.** Concretely:
    plaintext**, so it is safe in version control. This makes the full topology durable, reviewable, and
    recoverable. (Amends RQ-0004 / ADR-0003, which gitignored the file out of caution; the `${ENV}`-only
    rule makes that caution unnecessary. `config/*.local.yaml` stays ignored for ad-hoc local overrides.)
-2. **Secret values live in GitHub as repo/Environment Actions secrets** — the cloud "vault" / fallback.
-   The same runtime client secret is mirrored in the consuming repo's Actions secret (e.g. the gateway's
-   `MAESTRO_RUNTIME_CLIENT_SECRET`) so the two sides agree (US-0086).
-3. **The mongo data volume is stable across deploys** — the deploy reconciles containers but never the
+2. **Secret values live in a SOPS-encrypted file committed to git** — `config/secrets.ds1.sops.yaml`
+   holds every seed value AES-256-GCM encrypted (keys readable, values `ENC[...]`). This **encrypted
+   backup file** is the fallback: versioned, recoverable, and — unlike a write-only secret store —
+   **readable back** (decrypt it). Only ciphertext ever touches GitHub, so plaintext stays sovereign
+   (ADR-0002/0027 friendly).
+3. **One master key in GitHub unlocks it** — the `age` **private key** is the single secret held as the
+   `SOPS_AGE_KEY` GitHub Actions secret (and by the operator). The `age` **public** recipient sits in
+   `.sops.yaml` (it only lets you re-encrypt when adding values). Rotation/onboarding is one key, not N
+   secrets. The runtime client secrets are *also* mirrored into the consuming repos' single
+   `MAESTRO_RUNTIME_CLIENT_SECRET` Actions secret so those deploys agree (US-0086).
+4. **The mongo data volume is stable across deploys** — the deploy reconciles containers but never the
    volume (`down` without `-v`), so steady-state data is no longer wiped. The one-time loss was the
    project-rename, now fixed.
-4. **Recovery = re-run the seeder** — the operator (or a host with mongo access) runs `npm run seed`
-   with the secrets exported from the environment. Because the definition is in git and the values are in
-   GitHub, the database is reconstructable from those two sources alone. Idempotent: tenants/clients are
-   upserted, existing users left untouched (RQ-0004).
+5. **Recovery = decrypt + re-seed** — `sops exec-env config/secrets.ds1.sops.yaml '… npm run seed'`
+   decrypts with the master key and injects the values the committed `config/seed.yaml` references.
+   Because the definition is in git and the values are in the git-committed encrypted file (unlockable
+   with the one GitHub-held key), the database is reconstructable from GitHub alone. Idempotent:
+   tenants/clients upserted, existing users left untouched (RQ-0004).
 
-### Why GitHub Actions secrets (not a SaaS vault)
+### Why SOPS + age (not N individual Actions secrets)
 
-GitHub is already the deploy control plane and where the deploy-time secrets live, so it is the natural
-fallback with no new dependency. Its one limitation is that secrets are **write-only** — an operator
-cannot read a value back — so it is a *re-injection* source, not a *read-back* backup. That is acceptable
-here: the values are also distributed to their human owners (passwords) and the consuming deployments
-(client secrets), and a rotated value is simply re-set in both places. If read-back recovery is later
-wanted, **SOPS-encrypted secrets committed to the repo** (only ciphertext touches GitHub — plaintext
-stays sovereign, ADR-0002/0027 friendly) is the documented upgrade path; it is **out of scope** here.
+The first cut of this ADR stored each value as its own GitHub Actions secret. That works but has two
+flaws: Actions secrets are **write-only** (no read-back recovery), and a growing fleet means N secrets to
+manage. SOPS inverts it — **one** master key in GitHub, and an encrypted **backup file** in git that is
+versioned, diff-reviewable, and decryptable. GitHub still never sees plaintext. We accept one new
+dependency (the `sops` + `age` binaries at decrypt time), which is trivial to install and already
+standard for GitOps.
 
 ### Why not CI auto-seed (yet)
 
@@ -70,10 +77,14 @@ secrets. A seeder-capable image + a `workflow_dispatch` re-seed job is a possibl
 
 ## Consequences
 
-- The full ds1 identity topology is now in git and rebuildable from GitHub after any data loss.
-- No plaintext secret is ever committed; rotation = change the Actions secret (+ the consumer's mirror)
-  and re-seed.
-- Operators must keep the committed `config/seed.yaml` and the Actions-secret set in sync (a new client
-  needs both an entry and a secret); the deployment guide documents the secret list.
+- The full ds1 identity topology **and** its (encrypted) secret values live in git, rebuildable from
+  GitHub after any data loss — with read-back recovery via the master key.
+- No plaintext is ever committed; rotation = `sops` edit the encrypted file (+ the consumer's mirror)
+  and re-seed. Adding a value never adds a GitHub secret — only the file changes.
+- Operators keep `config/seed.yaml` and `config/secrets.ds1.sops.yaml` in sync (a new client needs an
+  entry in both); the deployment guide documents the recovery command.
+- The master key (`SOPS_AGE_KEY`) is the one bootstrap secret to guard; losing it means the backup can't
+  be decrypted (keep an offline copy), and a leak means re-key + re-encrypt.
 - The deploy no longer wipes data, so re-seeding is needed only for first setup, a new tenant/client, or
-  an explicit reset — not on every deploy.
+  an explicit reset — not on every deploy. (CI auto-seed remains out of scope: the prod image has no
+  seeder and the socket-only runner can't mount a checkout.)

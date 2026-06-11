@@ -73,35 +73,35 @@ The SSH / `DOCKER_HOST` runbook above still works for a laptop-driven deploy or 
 
 ## Seed & recovery (identity data) — ADR-0006 / RQ-0006
 
-The auth data (tenants, app clients, users) lives in MongoDB. Its **definition is committed** at
-`config/seed.yaml` (only `${ENV}` secret references — no plaintext), and the secret **values** live as
-**GitHub Actions secrets** — the durable, off-host fallback. The deploy keeps the mongo data volume, so
-steady-state data is not wiped; re-seed only for first setup, a new tenant/client, or after a loss.
+The auth data (tenants, app clients, users) lives in MongoDB. Both halves are durable in git:
 
-**Required secrets** (set as repo/Environment Actions secrets, and export into the environment to seed):
+- **Definition** — `config/seed.yaml` (committed; only `${ENV}` references, no plaintext).
+- **Secret values** — `config/secrets.ds1.sops.yaml` (committed; **SOPS/age-encrypted**, values only).
+  The single **master key** that decrypts it is the `age` private key, held as the `SOPS_AGE_KEY` GitHub
+  Actions secret (and an operator's offline copy); the public recipient is in `.sops.yaml`.
 
-| Secret env var | What |
-| --- | --- |
-| `SEED_DEMO_PASSWORD`, `SEED_ADMIN_PASSWORD` | `demo` tenant users |
-| `SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD`, `SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD` | `sovereign-copilot` users |
-| `SEED_MAESTRO_PO_PASSWORD`, `SEED_MAESTRO_SA_PASSWORD`, `SEED_MAESTRO_ADMIN_PASSWORD` | `maestro` users |
-| `MAESTRO_GATEWAY_DS1_SECRET` | `sovereign-llm-gateway-ds1` runtime client secret — **must equal** the gateway repo's `MAESTRO_RUNTIME_CLIENT_SECRET` (US-0086) |
-| `MAESTRO_COPILOT_DS1_SECRET` | `sovereign-copilot-ds1` runtime client secret — **must equal** the copilot repo's `MAESTRO_RUNTIME_CLIENT_SECRET` |
+The deploy keeps the mongo data volume, so steady-state data is not wiped; re-seed only for first setup,
+a new tenant/client, or after a loss.
 
-**Recover / re-seed** (from `service/`, against ds1's Mongo on its published port `27019`):
+**Prerequisites:** `sops` + `age` (`brew install sops age`) and the master key in the environment, e.g.
+`export SOPS_AGE_KEY=$(gh secret …)`  — or point `SOPS_AGE_KEY_FILE` at a local key file.
+
+**Recover / re-seed** — `sops exec-env` decrypts the backup and injects the values the seeder references
+(from `service/`, against ds1's Mongo on its published port `27019`):
 
 ```bash
-SEED_DEMO_PASSWORD=… SEED_ADMIN_PASSWORD=… \
-SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD=… SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD=… \
-SEED_MAESTRO_PO_PASSWORD=… SEED_MAESTRO_SA_PASSWORD=… SEED_MAESTRO_ADMIN_PASSWORD=… \
-MAESTRO_GATEWAY_DS1_SECRET=… MAESTRO_COPILOT_DS1_SECRET=… \
-MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth \
-  npm run seed
+SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
+sops exec-env ../config/secrets.ds1.sops.yaml \
+  'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth npm run seed'
 ```
 
 Idempotent: tenants/clients are upserted; **existing users are left untouched** — change a password with
 `npm run manage-users -- set-password --tenant=<id> --email=<e> --password=<p>`. Passwords are stored as
-scrypt hashes; the plaintext lives only in the Actions secret and with the human owner.
+scrypt hashes; plaintext lives only inside the encrypted file and with the human owner.
+
+**Edit / rotate a secret:** `sops config/secrets.ds1.sops.yaml` (opens the decrypted values in `$EDITOR`,
+re-encrypts on save), then re-seed. A runtime client secret must stay equal to its consumer-repo mirror
+(`MAESTRO_RUNTIME_CLIENT_SECRET` in the gateway / copilot repos, US-0086).
 
 ## Verify
 

@@ -1,15 +1,12 @@
 # ds1 identity seed — the DURABLE, recoverable definition (ADR-0006 / RQ-0006).
 #
 # COMMITTED on purpose: every secret here is an ${ENV_VAR} reference resolved at run time, so this file
-# holds NO plaintext. The secret VALUES live in GitHub Actions secrets (the fallback); export them into
-# the environment before seeding. To rebuild the auth DB after a loss, from service/:
+# holds NO plaintext. The secret VALUES live in the committed, SOPS-encrypted config/secrets.ds1.sops.yaml
+# (unlocked by the SOPS_AGE_KEY master key — ADR-0006). To rebuild the auth DB after a loss, from service/:
 #
-#     SEED_DEMO_PASSWORD=… SEED_ADMIN_PASSWORD=… \
-#     SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD=… SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD=… \
-#     SEED_MAESTRO_PO_PASSWORD=… SEED_MAESTRO_SA_PASSWORD=… SEED_MAESTRO_ADMIN_PASSWORD=… \
-#     MAESTRO_GATEWAY_DS1_SECRET=… MAESTRO_COPILOT_DS1_SECRET=… \
-#     MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth \
-#       npm run seed
+#     SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
+#     sops exec-env ../config/secrets.ds1.sops.yaml \
+#       'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth npm run seed'
 #
 # Idempotent: tenants + clients are upserted on every run; existing users are left untouched
 # (insert-if-absent), so a re-run never resets a password. Use `npm run manage-users -- set-password …`

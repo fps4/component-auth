@@ -74,9 +74,16 @@ web_modules/
 !config/ds1/.env.base
 
 # Seed config (ADR-0006 / RQ-0006): config/seed.yaml is COMMITTED — it holds only ${ENV} secret
-# references (no plaintext), so it is the durable, recoverable identity definition. Secret VALUES live
-# in GitHub Actions secrets. Ad-hoc local overrides stay ignored.
+# references (no plaintext), so it is the durable, recoverable identity definition. Ad-hoc local
+# overrides stay ignored.
 config/*.local.yaml
+
+# SOPS secret backup: the *.sops.yaml ciphertext IS committed (the backup file). NEVER commit the age
+# private key (the master key — it lives in the SOPS_AGE_KEY Actions secret) or any decrypted plaintext.
+*.agekey
+*.age.txt
+config/secrets.*.dec.yaml
+config/secrets.*.plain.yaml
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
