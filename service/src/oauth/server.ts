@@ -149,20 +149,31 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     const keyPair = await getActiveKeyPair();
     const privateKey = await importPKCS8(keyPair.privateKeyPem, 'RS256');
 
+    // Extra, additive claims the client carries (US-0086) — e.g. a product_runtime credential's
+    // `role` + `email`, which the resource server matches its principal on. Spread first so the
+    // controlled claims below (and the signer's registered claims) always win; never let a stored
+    // claim override identity.
+    const extraClaims = (client.claims && typeof client.claims === 'object') ? client.claims : {};
     const payload: Record<string, unknown> = {
+      ...extraClaims,
       tid: tenantId,
       cid: client._id,
       scope: effectiveScopes.join(' '),
-      sub: input.subject ?? client._id
+      sub: input.subject ?? client.subject ?? client._id
     };
     if (input.sessionId) {
       payload.sid = input.sessionId;
     }
 
+    // Per-client audience when configured (US-0086) — a machine principal is audience-bound to one
+    // workspace (e.g. `maestro-workspace`) exactly like a user token, falling back to the service-wide
+    // default for an unscoped client.
+    const audience = client.audience ?? CONFIG.auth.jwtAudience;
+
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'RS256', kid: keyPair.kid, typ: 'JWT' })
       .setIssuer(CONFIG.auth.jwtIssuer)
-      .setAudience(CONFIG.auth.jwtAudience)
+      .setAudience(audience)
       .setJti(jti)
       .setIssuedAt(Math.floor(issuedAt.getTime() / 1000))
       .setExpirationTime(Math.floor(expDate.getTime() / 1000))

@@ -223,6 +223,76 @@ describe('OAuth server – client credentials grant', () => {
     expect(claims.scope).toBe('telemetry:read');
   });
 
+  it('mints a product_runtime credential with per-client audience, subject and additive claims (US-0086)', () => {
+    state.tenants.push({
+      _id: 'tenant-rt',
+      name: 'Runtime Tenant',
+      status: 'active',
+      oauth: { enabled: true, allowedGrantTypes: ['client_credentials'], allowedScopes: [] }
+    } as any);
+    state.clients.push({
+      _id: 'gateway-ds1',
+      tenantId: 'tenant-rt',
+      name: 'sovereign-llm-gateway@ds1 runtime',
+      secretHash: hashSecret('rt-secret'),
+      grantTypes: ['client_credentials'],
+      scopes: [],
+      redirectUris: [],
+      isConfidential: true,
+      // Audience-bind the machine principal to the maestro workspace and carry the claims maestro
+      // resolves its product_runtime on (its register matches by email; role is defence-in-depth).
+      audience: 'maestro-workspace',
+      subject: 'runtime@sovereign-llm-gateway.fps4.nl',
+      claims: { role: 'product_runtime', email: 'runtime@sovereign-llm-gateway.fps4.nl' }
+    } as any);
+
+    return oauthServer.issueClientCredentialsToken({
+      clientId: 'gateway-ds1',
+      clientSecret: 'rt-secret'
+    }).then((result) => {
+      const claims = decodeJwt(result.accessToken);
+      expect(claims.aud).toBe('maestro-workspace');                 // not the service-wide default
+      expect(claims.sub).toBe('runtime@sovereign-llm-gateway.fps4.nl');
+      expect(claims.role).toBe('product_runtime');
+      expect(claims.email).toBe('runtime@sovereign-llm-gateway.fps4.nl');
+      expect(claims.iss).toBeDefined();
+      expect(claims.exp).toBeGreaterThan(0);
+    });
+  });
+
+  it('never lets a stored claim override a registered/identity claim (US-0086)', () => {
+    state.tenants.push({
+      _id: 'tenant-rt2',
+      name: 'Runtime Tenant 2',
+      status: 'active',
+      oauth: { enabled: true, allowedGrantTypes: ['client_credentials'], allowedScopes: [] }
+    } as any);
+    state.clients.push({
+      _id: 'sneaky',
+      tenantId: 'tenant-rt2',
+      name: 'sneaky client',
+      secretHash: hashSecret('s'),
+      grantTypes: ['client_credentials'],
+      scopes: [],
+      redirectUris: [],
+      isConfidential: true,
+      audience: 'maestro-workspace',
+      subject: 'runtime@x',
+      // Reserved claims smuggled into the additive map must lose to the controlled/signed values.
+      claims: { aud: 'someone-else', sub: 'impersonated', iss: 'evil' }
+    } as any);
+
+    return oauthServer.issueClientCredentialsToken({
+      clientId: 'sneaky',
+      clientSecret: 's'
+    }).then((result) => {
+      const claims = decodeJwt(result.accessToken);
+      expect(claims.aud).toBe('maestro-workspace');
+      expect(claims.sub).toBe('runtime@x');
+      expect(claims.iss).not.toBe('evil');
+    });
+  });
+
   it('rejects tokens when tenant OAuth is disabled', async () => {
     state.tenants.push({
       _id: 'tenant-off',

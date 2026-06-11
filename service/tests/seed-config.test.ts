@@ -30,6 +30,28 @@ describe('parseSeedConfig (RQ-0004)', () => {
     expect(() => parseSeedConfig(bad, {})).toThrowError(/audience/);
   });
 
+  // US-0086 — a product_runtime client-credentials principal: subject + additive claims
+  it('parses a client-credentials runtime principal (subject + claims)', () => {
+    const cfg = parseSeedConfig({ tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['client_credentials'] },
+      clients: [{ id: 'gw-ds1', grantTypes: ['client_credentials'], audience: 'maestro-workspace',
+        isConfidential: true, secret: '${GW_SECRET}',
+        subject: 'runtime@gw.fps4.nl',
+        claims: { role: 'product_runtime', email: 'runtime@gw.fps4.nl' } }] }] },
+      { GW_SECRET: 'shh' });
+    const c = cfg.tenants[0].clients![0];
+    expect(c.subject).toBe('runtime@gw.fps4.nl');
+    expect(c.claims).toEqual({ role: 'product_runtime', email: 'runtime@gw.fps4.nl' });
+    expect(c.secret).toBe('shh');                                   // ${ENV} interpolated
+  });
+
+  it('rejects client claims that are not an object', () => {
+    const bad = { tenants: [{ id: 't', name: 'T',
+      oauth: { enabled: true, allowedGrantTypes: ['client_credentials'] },
+      clients: [{ id: 'c', grantTypes: ['client_credentials'], claims: 'not-an-object' }] }] };
+    expect(() => parseSeedConfig(bad, {})).toThrowError(/claims must be an object/);
+  });
+
   it('rejects users on a tenant that has not enabled the local IdP', () => {
     const bad = { tenants: [{ id: 't', name: 'T',
       oauth: { enabled: true, allowedGrantTypes: ['password'] }, // no idp: local

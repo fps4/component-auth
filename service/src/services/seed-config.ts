@@ -13,6 +13,11 @@ export interface SeedClient {
   scopes?: string[];
   isConfidential?: boolean;
   secret?: string;
+  // A client-credentials machine principal (US-0086): the `sub` its token carries and any extra
+  // additive claims (e.g. `{ role: 'product_runtime', email: 'runtime@…' }`) the resource server
+  // matches on. Both optional — an ordinary CI client needs neither.
+  subject?: string;
+  claims?: Record<string, unknown>;
 }
 
 export interface SeedUser {
@@ -99,6 +104,9 @@ export function parseSeedConfig(raw: unknown, env: Record<string, string | undef
       if (cg.some((g) => GRANTS_NEEDING_AUDIENCE.has(g)) && !c.audience) {
         throw new SeedConfigError(`${cw} (${c.id}) needs an audience for the ${cg.join('/')} grant(s)`);
       }
+      if (c.claims !== undefined && !isObject(c.claims)) {
+        throw new SeedConfigError(`${cw} (${c.id}) claims must be an object of additive token claims`);
+      }
       return {
         id: c.id,
         name: typeof c.name === 'string' ? c.name : c.id,
@@ -107,7 +115,9 @@ export function parseSeedConfig(raw: unknown, env: Record<string, string | undef
         redirectUris: Array.isArray(c.redirectUris) ? (c.redirectUris as string[]) : [],
         scopes: Array.isArray(c.scopes) ? (c.scopes as string[]) : [],
         isConfidential: typeof c.isConfidential === 'boolean' ? c.isConfidential : false,
-        secret: typeof c.secret === 'string' ? interpolate(c.secret, env) : undefined
+        secret: typeof c.secret === 'string' ? interpolate(c.secret, env) : undefined,
+        subject: typeof c.subject === 'string' ? c.subject : undefined,
+        claims: isObject(c.claims) ? (c.claims as Record<string, unknown>) : undefined
       };
     }) : [];
 

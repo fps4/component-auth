@@ -10,9 +10,19 @@ export interface OAuthClientDocument extends Document {
   redirectUris: string[];
   scopes: string[];
   isConfidential: boolean;
-  // The `aud` value stamped on user tokens minted for this consumer (RQ-0001). Binds a token to one
-  // workspace — maestro's COMPONENT_AUTH_AUDIENCE must equal this. Unused by the client-credentials grant.
+  // The `aud` value stamped on tokens minted for this consumer (RQ-0001). Binds a token to one
+  // workspace — maestro's COMPONENT_AUTH_AUDIENCE must equal this. Now honoured by the
+  // client-credentials grant too (US-0086), so a machine principal can be audience-bound to a workspace
+  // (e.g. `maestro-workspace`) rather than the service-wide default.
   audience?: string;
+  // The `sub` a client-credentials token carries (US-0086). For a product_runtime credential this is the
+  // deployment's runtime principal (e.g. `runtime@sovereign-llm-gateway.fps4.nl`) that the resource
+  // server (maestro) resolves against its register. Falls back to the client id when unset.
+  subject?: string;
+  // Extra, additive claims merged into a client-credentials token (US-0086) — e.g.
+  // `{ role: 'product_runtime', email: 'runtime@…' }` so the resource server can match its principal.
+  // Registered claims (`iss`/`aud`/`exp`/`sub`/…) are always set by the signer and cannot be overridden.
+  claims?: Record<string, unknown>;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -27,6 +37,8 @@ const oauthClientSchema = new mongoose.Schema<OAuthClientDocument>({
   scopes: { type: [String], default: [] },
   isConfidential: { type: Boolean, default: true },
   audience: { type: String },
+  subject: { type: String },
+  claims: { type: mongoose.Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

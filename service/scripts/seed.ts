@@ -65,6 +65,9 @@ async function main() {
         redirectUris: c.redirectUris, scopes: c.scopes, audience: c.audience,
         isConfidential: c.isConfidential, updatedAt: now
       };
+      // A client-credentials machine principal (US-0086): the runtime subject + additive claims.
+      if (c.subject !== undefined) set.subject = c.subject;
+      if (c.claims !== undefined) set.claims = c.claims;
       if (c.secret) set.secretHash = hashSecret(c.secret);
       await OAuthClient.updateOne({ _id: c.id }, { $set: set }, { upsert: true }).exec();
       clientsUpserted++;
