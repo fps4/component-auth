@@ -105,6 +105,31 @@ jobs:
           docker logs --tail 20 component-auth 2>&1 | tail -20 || true
           [ "$ok" = 1 ] || { echo "::error::component-auth did not become healthy"; exit 1; }
 
+      - name: Verify product_runtime clients are seeded (service authorization)
+        # A managed-product runtime authorizes to maestro with a client_credentials JWT minted from a
+        # `product_runtime` client in THIS service's DB (US-0086; docs/reference/product-runtime-credential.md).
+        # Seeding is a manual operator step (RQ-0004) — this pipeline ships the service, not the seed data — so
+        # a runtime client newly added to config/seed.yaml silently 404s ("Client not found") until someone
+        # re-seeds ds1, and maestro then drops that runtime's heartbeat/telemetry/RCA (no logs on maestro).
+        # Gate on it: assert every product_runtime client DECLARED in the committed seed is actually PRESENT in
+        # Mongo, and fail loudly (with the seed command) on drift. Read-only; runs over the same Docker socket.
+        run: |
+          DB=$(grep -E '^MONGO_DB_NAME=' config/ds1/.env.base | cut -d= -f2)
+          DB=${DB:-component-auth}
+          expected=$(grep -cE '^[[:space:]]*role:[[:space:]]*product_runtime[[:space:]]*$' config/seed.yaml || true)
+          echo "config/seed.yaml declares ${expected:-0} product_runtime client(s)"
+          actual=$(docker exec component-auth-mongo mongosh "$DB" --quiet \
+            --eval 'db.oauth_clients.countDocuments({"claims.role":"product_runtime"})' 2>/dev/null | tr -dc '0-9')
+          echo "ds1 auth DB ($DB) has ${actual:-0} product_runtime client(s)"
+          if [ "${actual:-0}" -lt "${expected:-0}" ]; then
+            echo "::error::Service-authorization gap: only ${actual:-0}/${expected} product_runtime client(s) seeded on ds1."
+            echo "::error::Managed-product runtimes cannot mint a token, so maestro will drop their telemetry/logs."
+            echo "::error::Re-seed ds1 from service/ (SOPS master key unlocks the client secrets):"
+            echo "::error::  sops exec-env ../config/secrets.ds1.sops.yaml 'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=$DB npm run seed'"
+            exit 1
+          fi
+          echo "OK: all ${expected:-0} product_runtime client(s) present — runtimes can authorize to maestro."
+
       - name: Cleanup assembled secrets (always)
         if: always()
         run: rm -f config/ds1/.env
