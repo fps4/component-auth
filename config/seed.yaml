@@ -112,6 +112,19 @@ tenants:
         claims:
           role: product_runtime
           email: runtime@sovereign-copilot.fps4.nl
+      # component-auth's own runtime: it reports its fleet health/telemetry to maestro under the
+      # "components" (Shared Components) product, whose ds1 deployment maestro's register keys to this
+      # identity (runtime@components.fps4.nl). Self-minted via this service's own token endpoint.
+      - id: components-ds1
+        name: components@ds1 runtime
+        grantTypes: [client_credentials]
+        isConfidential: true
+        secret: ${MAESTRO_COMPONENTS_DS1_SECRET}
+        audience: maestro-workspace
+        subject: runtime@components.fps4.nl
+        claims:
+          role: product_runtime
+          email: runtime@components.fps4.nl
     users:
       - email: po@maestro.fps4.nl
         password: ${SEED_MAESTRO_PO_PASSWORD}

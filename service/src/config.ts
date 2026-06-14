@@ -68,7 +68,19 @@ export const CONFIG = {
     staticOrigins: parseOrigins(process.env.CORS_ORIGINS),
     allowedMethods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS']
   },
-  corsRefreshIntervalMs: toNumber(process.env.TENANT_CORS_REFRESH_INTERVAL_MS, 5 * 60 * 1000)
+  corsRefreshIntervalMs: toNumber(process.env.TENANT_CORS_REFRESH_INTERVAL_MS, 5 * 60 * 1000),
+  // Outbound fleet-monitoring to maestro (managed-product platform: heartbeat US-0070 + telemetry
+  // US-0076). Reports under the "components" product / ds1 deployment that maestro's register already
+  // declares (runtime@components.fps4.nl). Stays fully INERT when apiUrl is empty (local dev / tests /
+  // CI build) — nothing is sent. The runtime JWT is self-minted via this service's own client_credentials.
+  maestro: {
+    apiUrl: process.env.MAESTRO_API_URL ?? '',
+    productId: process.env.MAESTRO_PRODUCT_ID ?? 'components',
+    deploymentId: process.env.MAESTRO_DEPLOYMENT_ID ?? 'ds1',
+    runtimeClientId: process.env.MAESTRO_RUNTIME_CLIENT_ID ?? 'components-ds1',
+    runtimeClientSecret: process.env.MAESTRO_RUNTIME_CLIENT_SECRET ?? '',
+    emitIntervalMs: toNumber(process.env.MAESTRO_EMIT_INTERVAL_MS, 60_000)
+  }
 } as const;
 
 export default CONFIG;

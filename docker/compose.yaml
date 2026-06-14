@@ -58,6 +58,12 @@ services:
       OAUTH_KEY_ROTATION_HOURS: ${OAUTH_KEY_ROTATION_HOURS:-720}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_PRETTY: ${LOG_PRETTY:-false}
+      # Outbound fleet monitoring to maestro. Empty MAESTRO_API_URL keeps the channel inert (default).
+      MAESTRO_API_URL: ${MAESTRO_API_URL:-}
+      MAESTRO_PRODUCT_ID: ${MAESTRO_PRODUCT_ID:-components}
+      MAESTRO_DEPLOYMENT_ID: ${MAESTRO_DEPLOYMENT_ID:-ds1}
+      MAESTRO_RUNTIME_CLIENT_ID: ${MAESTRO_RUNTIME_CLIENT_ID:-components-ds1}
+      MAESTRO_RUNTIME_CLIENT_SECRET: ${MAESTRO_RUNTIME_CLIENT_SECRET:-}
     ports:
       - "${CORE_AUTH_PORT:-7305}:7305"
 

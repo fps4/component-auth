@@ -61,6 +61,9 @@ web_modules/
 
 # Output of 'npm pack'
 *.tgz
+# Exception: the maestro SDK is vendored as a committed tarball (file: dependency) until
+# @fps4/maestro-sdk is published — it must ship with the repo so `npm install` / the Docker build resolve it.
+!service/vendor/*.tgz
 
 # Yarn Integrity file
 .yarn-integrity
