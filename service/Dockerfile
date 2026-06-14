@@ -3,6 +3,9 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package*.json ./
+# The maestro SDK is a vendored tarball (file: dependency) until @fps4/maestro-sdk is published —
+# `npm install` resolves it from here, so it must be present before the install.
+COPY vendor/ ./vendor/
 RUN npm install
 
 FROM base AS build
