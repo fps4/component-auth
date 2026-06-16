@@ -23,7 +23,7 @@ Start at [`overview.md`](./overview.md) — the product landing.
 | **Product** | [`product/`](./product) | Intent + functional specs (`RQ-*`) — the *what & why*. |
 | **Design** | [`design/`](./design) | [`architecture.md`](./design/architecture.md) + ADRs ([`decisions/`](./design/decisions)) — the *how & why-decided*. |
 | **Reference** | [`reference/`](./reference) | The exact lookup surface — [`api.md`](./reference/api.md) (endpoints, token contract, JWKS). The [`GLOSSARY.md`](../GLOSSARY.md) lives at the repo root. |
-| **Guides** | [`guides/`](./guides) | How-to / operations / onboarding — [`tenant-config.md`](./guides/tenant-config.md), [`deployment.md`](./guides/deployment.md). |
+| **Guides** | [`guides/`](./guides) | How-to / operations / onboarding — [`tenant-config.md`](./guides/tenant-config.md), [`deployment.md`](./guides/deployment.md), [`resource-server-integration.md`](./guides/resource-server-integration.md). |
 
 ## Delivery plane — work (you track)
 
