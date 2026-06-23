@@ -150,6 +150,15 @@ export function createAdminService(deps: AdminServiceDependencies) {
     return { clientId, secret };
   }
 
+  /** Delete a client by id. 404 if it does not exist. */
+  async function deleteClient(clientId: string): Promise<{ clientId: string; deleted: true }> {
+    const m = await models();
+    const deleted = await m.OAuthClient.findByIdAndDelete(clientId).lean().exec();
+    if (!deleted) throw new AdminServiceError('Client not found', 404, 'client_not_found');
+    deps.logger?.info?.({ clientId }, 'admin deleted client');
+    return { clientId, deleted: true };
+  }
+
   // --- Users (local-credential IdP) ---
 
   async function createUser(input: CreateUserInput): Promise<{ id: string; email: string; tenantId: string }> {
@@ -258,7 +267,7 @@ export function createAdminService(deps: AdminServiceDependencies) {
 
   return {
     listTenants, getTenant, upsertTenant,
-    listClients, createClient, rotateClientSecret,
+    listClients, createClient, rotateClientSecret, deleteClient,
     createUser, resetUserPassword, setUserStatus, unlockUser,
     rotateKey, keyStatus, getStats
   };

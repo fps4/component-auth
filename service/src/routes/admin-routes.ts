@@ -90,6 +90,14 @@ router.post('/clients/:id/rotate-secret', requireAdmin(ADMIN_SCOPES.clients), as
   } catch (e) { handleError(res, e); }
 });
 
+router.delete('/clients/:id', requireAdmin(ADMIN_SCOPES.clients), async (req, res) => {
+  try {
+    const result = await adminService.deleteClient(req.params.id);
+    audit(req, res, 'client.delete', { type: 'client', id: req.params.id });
+    res.json(result);
+  } catch (e) { handleError(res, e); }
+});
+
 // --- Users ---
 
 router.post('/users', requireAdmin(ADMIN_SCOPES.users), async (req, res) => {

@@ -64,6 +64,13 @@ const TOOLS: ToolDef[] = [
     handler: (a) => adminService.rotateClientSecret(a.clientId)
   },
   {
+    name: 'delete_client',
+    description: 'Delete an OAuth client by its client_id (Mongo _id). 404 if it does not exist.',
+    areaScope: ADMIN_SCOPES.clients,
+    inputSchema: obj({ clientId: str }, ['clientId']),
+    handler: (a) => adminService.deleteClient(a.clientId)
+  },
+  {
     name: 'create_user',
     description: 'Create a local-credential user under a tenant.',
     areaScope: ADMIN_SCOPES.users,
