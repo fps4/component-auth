@@ -65,6 +65,10 @@ jobs:
           # Runtime secret for the maestro fleet-telemetry channel. Must equal the seeded
           # MAESTRO_COMPONENTS_DS1_SECRET (config/secrets.ds1.sops.yaml). Unset → telemetry stays inert.
           MAESTRO_RUNTIME_CLIENT_SECRET: ${{ secrets.MAESTRO_RUNTIME_CLIENT_SECRET }}
+          # Management-plane admin client secret (ADR-0007). Injected into the service container so the
+          # in-container MCP launcher (docker/mcp-admin.sh) can mint an admin token. Must equal the
+          # seeded identity-admin-mcp secret (config/secrets.ds1.sops.yaml). Unset → MCP admin auth off.
+          IDENTITY_ADMIN_CLIENT_SECRET: ${{ secrets.IDENTITY_ADMIN_CLIENT_SECRET }}
         run: |
           umask 077
           cp config/ds1/.env.base config/ds1/.env
@@ -74,8 +78,10 @@ jobs:
             [ -n "$GOOGLE_CLIENT_SECRET" ] && echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET"
             [ -n "$GOOGLE_REDIRECT_URI" ] && echo "GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT_URI"
             [ -n "$MAESTRO_RUNTIME_CLIENT_SECRET" ] && echo "MAESTRO_RUNTIME_CLIENT_SECRET=$MAESTRO_RUNTIME_CLIENT_SECRET"
+            [ -n "$IDENTITY_ADMIN_CLIENT_SECRET" ] && echo "IDENTITY_ADMIN_CLIENT_SECRET=$IDENTITY_ADMIN_CLIENT_SECRET"
           } >> config/ds1/.env
           [ -n "$MAESTRO_RUNTIME_CLIENT_SECRET" ] || echo "::warning::MAESTRO_RUNTIME_CLIENT_SECRET unset — maestro fleet telemetry stays dormant"
+          [ -n "$IDENTITY_ADMIN_CLIENT_SECRET" ] || echo "::warning::IDENTITY_ADMIN_CLIENT_SECRET unset — management plane / MCP admin auth unavailable"
           [ -n "$OAUTH_KEY_PASSPHRASE" ] || echo "::warning::OAUTH_KEY_PASSPHRASE unset — signing keys stored unencrypted at rest (ds1 SMOKE)"
           echo "Assembled config/ds1/.env ($(grep -c . config/ds1/.env) non-empty lines)"
 

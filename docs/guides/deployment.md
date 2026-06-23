@@ -164,20 +164,29 @@ consumer's own choice of name).
 
 The `/admin/v1` API, the MCP server, and the admin console all authenticate with a `client_credentials`
 token carrying the `admin` scope. That principal is seeded as a dedicated tenant + client
-(`identity-service-ops` / `identity-admin-mcp`) in [`config/seed.yaml`](../../config/seed.yaml). To
-provision it:
+(`identity-service-ops` / `identity-admin-mcp`) in [`config/seed.yaml`](../../config/seed.yaml).
 
-1. **Set the secret (seed-as-code, ADR-0006).** Add `IDENTITY_ADMIN_CLIENT_SECRET` to the SOPS file and
-   re-seed:
+The **one** secret value lives in **two** places (it must be identical in both — same pattern as
+`MAESTRO_RUNTIME_CLIENT_SECRET`):
+
+- the **`IDENTITY_ADMIN_CLIENT_SECRET` GitHub Actions secret** → the deploy injects it into the
+  `identity-service` container env (`deploy-ds1.yml`), so the in-container launcher can **mint** a token;
+- the **SOPS seed file** → so the seeded client's secret **hash** matches what the mint presents.
+
+Provision it:
+
+1. **Set the GitHub secret** (used by the pipeline): `gh secret set IDENTITY_ADMIN_CLIENT_SECRET`.
+2. **Set the same value in seed-as-code (ADR-0006) and re-seed** so the client exists in Mongo with that
+   secret hashed:
 
    ```bash
-   sops config/secrets.ds1.sops.yaml   # add: IDENTITY_ADMIN_CLIENT_SECRET: <a long random string>
+   sops config/secrets.ds1.sops.yaml   # add: IDENTITY_ADMIN_CLIENT_SECRET: <the same value>
    # then, from service/, the usual seed run (idempotent — upserts the client):
    SOPS_AGE_KEY='AGE-SECRET-KEY-…' sops exec-env ../config/secrets.ds1.sops.yaml \
      'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
    ```
 
-2. **Mint a token** (any caller — the console, `curl`, a test):
+3. **Mint a token** (any caller — the console, `curl`, a test):
 
    ```bash
    curl -s -XPOST https://auth.fps4.nl/oauth2/token -d grant_type=client_credentials \
@@ -190,11 +199,13 @@ provision it:
 
 The MCP server talks to MongoDB directly and verifies the admin token against the service's own JWKS, so
 it runs **inside the `identity-service` container** (which already has Mongo, the key passphrase, and the
-issuer). [`docker/mcp-admin.sh`](../../docker/mcp-admin.sh) mints a fresh token on each start and execs
+issuer — plus `IDENTITY_ADMIN_CLIENT_SECRET`, injected by the deploy).
+[`docker/mcp-admin.sh`](../../docker/mcp-admin.sh) mints a fresh token on each start and execs
 `node dist/mcp/server.js` in that container — nothing long-lived is stored:
 
-1. Put the secret on the host (root-readable, gitignored): write
-   `IDENTITY_ADMIN_CLIENT_SECRET=<value>` to `/opt/identity-service/docker/.mcp-admin.env` (`chmod 600`).
+1. **No host-side secret is needed on ds1** — the launcher reads the secret from the container env. (For
+   local/dev, or if you prefer not to inject it into the container, the launcher also accepts a host
+   `IDENTITY_ADMIN_CLIENT_SECRET` env var or `/opt/identity-service/docker/.mcp-admin.env`, `chmod 600`.)
 2. A remote MCP client connects over SSH (stdio passes straight through):
 
    ```bash
