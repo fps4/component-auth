@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "start:prod": "NODE_ENV=production node dist/server.js",
     "manage-users": "tsx scripts/manage-users.ts",
+    "mcp": "tsx src/mcp/server.ts",
     "seed": "tsx scripts/seed.ts",
     "test": "vitest"
   },

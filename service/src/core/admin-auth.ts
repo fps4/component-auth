@@ -55,9 +55,51 @@ function parseScopes(claim: unknown): string[] {
 }
 
 /** True if the token's scopes satisfy the route — the superscope `admin`, or the specific area scope. */
-function scopesSatisfy(tokenScopes: string[], required: string): boolean {
+export function scopesSatisfy(tokenScopes: string[], required: string): boolean {
   const set = new Set(tokenScopes);
   return set.has(CONFIG.admin.requiredScope) || set.has(required);
+}
+
+/** True if a verified principal may act on the given area scope. */
+export function principalHasScope(principal: AdminPrincipal, areaScope: string): boolean {
+  return scopesSatisfy(principal.scopes, areaScope);
+}
+
+export class AdminTokenError extends Error {
+  constructor(message: string, public readonly reason: 'unauthorized' | 'forbidden') {
+    super(message);
+    this.name = 'AdminTokenError';
+  }
+}
+
+/**
+ * Verify a bearer admin token against this service's JWKS and return the principal. Shared by both
+ * management transports — the Express middleware (HTTP API) and the MCP server — so they enforce one
+ * authorization model. Throws {@link AdminTokenError} for an invalid token or a non-machine token.
+ */
+export async function verifyAdminToken(token: string): Promise<AdminPrincipal> {
+  let payload;
+  try {
+    ({ payload } = await jwtVerify(token, await getJwks(), { issuer: CONFIG.auth.jwtIssuer }));
+  } catch {
+    // A key may have rotated since we cached the JWKS — refresh once and retry.
+    try {
+      ({ payload } = await jwtVerify(token, await getJwks(true), { issuer: CONFIG.auth.jwtIssuer }));
+    } catch (err) {
+      logger.warn({ err }, 'admin token verification failed');
+      throw new AdminTokenError('Invalid or expired admin token', 'unauthorized');
+    }
+  }
+  const cid = typeof payload.cid === 'string' ? payload.cid : undefined;
+  if (!cid) {
+    throw new AdminTokenError('Not a machine (client-credentials) token', 'forbidden');
+  }
+  return {
+    clientId: cid,
+    subject: typeof payload.sub === 'string' ? payload.sub : undefined,
+    tenantId: typeof payload.tid === 'string' ? payload.tid : undefined,
+    scopes: parseScopes((payload as Record<string, unknown>).scope)
+  };
 }
 
 /**
@@ -73,35 +115,19 @@ export function requireAdmin(areaScope: string) {
       return;
     }
     try {
-      let payload;
-      try {
-        ({ payload } = await jwtVerify(token, await getJwks(), { issuer: CONFIG.auth.jwtIssuer }));
-      } catch (err) {
-        // Possibly a key rotated since we cached the JWKS — refresh once and retry before failing.
-        ({ payload } = await jwtVerify(token, await getJwks(true), { issuer: CONFIG.auth.jwtIssuer }));
-      }
-
-      const cid = typeof payload.cid === 'string' ? payload.cid : undefined;
-      if (!cid) {
-        // A user token (no `cid`) must never reach the management plane.
-        res.status(403).json({ error: 'forbidden', error_description: 'Not a machine (client-credentials) token' });
-        return;
-      }
-
-      const scopes = parseScopes((payload as Record<string, unknown>).scope);
-      if (!scopesSatisfy(scopes, areaScope)) {
+      const principal = await verifyAdminToken(token);
+      if (!principalHasScope(principal, areaScope)) {
         res.status(403).json({ error: 'forbidden', error_description: `Requires scope '${CONFIG.admin.requiredScope}' or '${areaScope}'` });
         return;
       }
-
-      req.admin = {
-        clientId: cid,
-        subject: typeof payload.sub === 'string' ? payload.sub : undefined,
-        tenantId: typeof payload.tid === 'string' ? payload.tid : undefined,
-        scopes
-      };
+      req.admin = principal;
       next();
     } catch (err) {
+      if (err instanceof AdminTokenError) {
+        const status = err.reason === 'forbidden' ? 403 : 401;
+        res.status(status).json({ error: err.reason, error_description: err.message });
+        return;
+      }
       logger.warn({ err }, 'admin token verification failed');
       res.status(401).json({ error: 'unauthorized', error_description: 'Invalid or expired admin token' });
     }
