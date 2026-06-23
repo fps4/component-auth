@@ -56,6 +56,9 @@ services:
       OAUTH_TENANT_MAX_REFRESH_TOKENS: ${OAUTH_TENANT_MAX_REFRESH_TOKENS:-10000}
       OAUTH_KEY_PASSPHRASE: ${OAUTH_KEY_PASSPHRASE:-}
       OAUTH_KEY_ROTATION_HOURS: ${OAUTH_KEY_ROTATION_HOURS:-720}
+      # Management-plane admin client secret (ADR-0007). Present in the container so the in-container MCP
+      # launcher (docker/mcp-admin.sh) can mint an admin token; must equal the seeded client secret.
+      IDENTITY_ADMIN_CLIENT_SECRET: ${IDENTITY_ADMIN_CLIENT_SECRET:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_PRETTY: ${LOG_PRETTY:-false}
       # Outbound fleet monitoring to maestro. Empty MAESTRO_API_URL keeps the channel inert (default).
