@@ -1,6 +1,8 @@
 ---
 title: "0001: A local email/password IdP alongside Google SSO"
+summary: "Add a local email/password identity provider as a per-tenant alternative to Google SSO, issuing the same user identity token; an admin HTTP management API is deferred."
 status: accepted
+last_updated: 2026-06-01
 date: 2026-06-01
 related:
   - ../../product/RQ-0002-local-password-idp.md

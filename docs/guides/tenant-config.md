@@ -1,7 +1,8 @@
 ---
 title: Tenant Configuration Guide
+summary: How to enable and configure OAuth 2.0 for a tenant in identity-service — the oauth block, defaults, and validation rules.
 status: current
-last_updated: 2026-06-07
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/reference/api.md
@@ -11,7 +12,7 @@ related:
 
 # Tenant Configuration Guide
 
-Component Auth relies on tenant-scoped metadata stored in MongoDB. Enabling OAuth 2.0 for a tenant requires adding an `oauth` section to the tenant document. This guide explains the structure, recommended defaults, and validation rules enforced by the service.
+identity-service relies on tenant-scoped metadata stored in MongoDB. Enabling OAuth 2.0 for a tenant requires adding an `oauth` section to the tenant document. This guide explains the structure, recommended defaults, and validation rules enforced by the service.
 
 ## Minimal Tenant Document
 

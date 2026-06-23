@@ -1,6 +1,8 @@
 ---
 title: "0005: Decentralized authorization — central coarse roles in the token, fine-grained policy in each product"
+summary: "identity-service stamps coarse, tenant-scoped roles into the token but never enforces them; each consuming product maps role strings to its own fine-grained permissions."
 status: accepted
+last_updated: 2026-06-02
 date: 2026-06-02
 related:
   - 0001-local-credential-idp.md

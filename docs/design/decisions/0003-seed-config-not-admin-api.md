@@ -1,6 +1,8 @@
 ---
 title: "0003: Provision tenants/clients/users from a gitignored seed config via an operator script — not an HTTP API"
+summary: "Provision tenants, clients, and users from a gitignored seed YAML via an idempotent operator script, rejecting an admin HTTP API while no admin-auth layer exists."
 status: accepted
+last_updated: 2026-06-01
 date: 2026-06-01
 related:
   - 0001-local-credential-idp.md

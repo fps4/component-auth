@@ -1,7 +1,8 @@
 ---
 title: Resource-Server Integration Guide
+summary: The build-once contract for a product consuming identity-service — verify the token, map coarse roles to capabilities, and enforce locally.
 status: current
-last_updated: 2026-06-16
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/design/decisions/0005-decentralized-authorization.md
@@ -12,12 +13,12 @@ related:
 
 # Resource-Server Integration Guide
 
-How a product integrates with Component Auth. This is the build-once contract every consuming
+How a product integrates with identity-service. This is the build-once contract every consuming
 product follows, so that authentication is owned in one place and authorization stays local to
 each product.
 
-Component Auth is the **authentication engine** (an OAuth2/OIDC Identity Provider). Each product
-is a **resource server**: it verifies the token Component Auth issues and makes its own
+identity-service is the **authentication engine** (an OAuth2/OIDC Identity Provider). Each product
+is a **resource server**: it verifies the token identity-service issues and makes its own
 authorization decisions. The decision behind this split is [ADR-0005 — decentralized
 authorization](../design/decisions/0005-decentralized-authorization.md); the roles mechanism is
 [RQ-0005](../product/RQ-0005-user-roles-in-identity-token.md). This guide is the *how-to* for the
@@ -27,19 +28,19 @@ consuming side.
 
 | Concern | Owner | Where it lives |
 |---|---|---|
-| Login, credentials, password reset, Google SSO | **Component Auth** | the IdP |
-| Users, the user store, JWKS, token issuance | **Component Auth** | the IdP |
-| **Coarse, tenant-scoped role assignment** ("alice is a `reviewer`") | **Component Auth** | the `roles` claim on the signed token; provisioned by operators |
+| Login, credentials, password reset, Google SSO | **identity-service** | the IdP |
+| Users, the user store, JWKS, token issuance | **identity-service** | the IdP |
+| **Coarse, tenant-scoped role assignment** ("alice is a `reviewer`") | **identity-service** | the `roles` claim on the signed token; provisioned by operators |
 | **Token verification** (signature, `iss`/`aud`/`exp`) | **the product** | a verifier at the product's edge |
 | **Fine-grained role → capability mapping** ("`reviewer` may approve a filing") | **the product** | the product's own config/code |
 | **Enforcement** of capabilities on operations | **the product** | the product's request path |
-| **User / role administration UI** | **Component Auth** | build-once; serves all products |
+| **User / role administration UI** | **identity-service** | build-once; serves all products |
 
-The governing rule: **Component Auth asserts identity and coarse roles; it never enforces what a
+The governing rule: **identity-service asserts identity and coarse roles; it never enforces what a
 role may do.** Each product maps the role strings it receives to its own permissions. (ADR-0005,
 RQ-0005 scope §5.)
 
-## What Component Auth gives you
+## What identity-service gives you
 
 - **A verifiable RS256 identity token** with `sub` (stable), `email`, `iss`, per-consumer `aud`,
   `exp`/`iat`, and an **optional `roles` claim** (array of coarse strings; omitted when the user
@@ -57,7 +58,7 @@ RQ-0005 scope §5.)
 1. **Verify the token at the edge** — signature against the JWKS, and `iss` / `aud` / `exp`.
    Extract `sub`, `email`, and `roles`.
 2. **Stay stateless on identity** — do **not** keep a user table or a role-grant store, and do
-   **not** call back to Component Auth to make an authorization decision. Everything you need
+   **not** call back to identity-service to make an authorization decision. Everything you need
    arrives on the verified token.
 3. **Map coarse roles → your capabilities in your own config** — a role string like `reviewer`
    means whatever your product's capability map says it means. Keep that map in the product repo.
@@ -69,7 +70,7 @@ RQ-0005 scope §5.)
 
 ## Roles are tenant-scoped, not product-scoped
 
-Component Auth stamps **one `roles` array per user per tenant**, independent of `audience`. If two
+identity-service stamps **one `roles` array per user per tenant**, independent of `audience`. If two
 products share a tenant, they see the **same** role strings. Handle this by convention:
 
 - **Namespace role strings per product** — `copilot:reviewer`, `maestro:operator` — and have each
@@ -79,13 +80,15 @@ products share a tenant, they see the **same** role strings. Handle this by conv
 Either way, an unknown role → no capabilities (logged). Keep the product's role vocabulary a subset
 of the tenant's `oauth.allowedRoles`.
 
-## Admin UI is Component Auth's job — build once
+## Admin UI is identity-service's job — build once
 
 User and role administration (create user, reset password, lock, **assign roles**) is
-Component Auth data and belongs inside its security boundary. **Products do not build their own
+identity-service data and belongs inside its security boundary. **Products do not build their own
 user-management surfaces** — that would duplicate the same admin UI over the same data N times.
-Today provisioning is the `manage-users` CLI; a GUI admin console, when a deployment needs one, is a
-Component Auth deliverable and then serves every product. A product may own **only** a *read-only*
+Provisioning is available three ways over one audited service layer (ADR-0007): the `manage-users`
+CLI, the authenticated [`/admin/v1` HTTP API](../reference/api.md#admin-v1-management-plane) (with an
+MCP server for agents), and the operator [admin console](../../console/README.md) — all
+identity-service deliverables that serve every product. A product may own **only** a *read-only*
 view of its own role → capability mapping (it mutates nothing and owns no identity).
 
 ## Integrate via the verifier-SDK pattern, not bespoke code
@@ -102,7 +105,7 @@ Don't re-implement JWKS handling per product. The integration surface is:
 
 - **Adding roles to a deployment is operator config, not code.** Declare the vocabulary in the
   tenant's `oauth.allowedRoles`, then `manage-users set-roles --tenant=<id> --email=<e> --roles=…`.
-  The `roles` claim, per-user storage, and the CLI already ship — no Component Auth code change is
+  The `roles` claim, per-user storage, and the CLI already ship — no identity-service code change is
   needed to light up RBAC in a consuming product.
 - **Role changes have a refresh-window latency.** Roles are re-read at each token issuance
   (including refresh), so a change takes effect no later than the next access-token refresh

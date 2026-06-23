@@ -1,6 +1,8 @@
 ---
 title: "0007: An authenticated management plane (HTTP API + MCP + admin console) over live MongoDB with nightly backups — and repositioning as a standalone identity service"
+summary: "Stand up an authenticated, audited management plane (HTTP /admin/v1 + MCP + admin console) over live MongoDB with nightly encrypted backups, and reposition the project as a standalone identity service."
 status: accepted
+last_updated: 2026-06-23
 date: 2026-06-23
 related:
   - ./0001-local-credential-idp.md

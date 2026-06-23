@@ -61,3 +61,25 @@ Terms where identity-service's business language and code diverge, or that a con
 
 - **Key rotation** — minting a new active signing key and demoting the previous one to `inactive`
   (still published, so its tokens verify until retired).
+
+- **Management plane** — the authenticated, audited day-2 surface (ADR-0007): the HTTP `/admin/v1` API,
+  an MCP server, and an operator console, all over one service layer. Onboards tenants, manages clients
+  and users, rotates secrets and signing keys, and serves statistics. Network-restricted — kept off the
+  public token-issuance surface. Distinct from the runtime OAuth/session endpoints.
+
+- **Admin scope** — the privilege a `client_credentials` token must carry to reach the management plane.
+  The superscope `admin` satisfies every admin route; granular per-area scopes (`admin:tenants`,
+  `admin:clients`, `admin:users`, `admin:keys`, `admin:stats`) let an agent hold least capability. Admin
+  tokens are this service's own client tokens, verified against its own JWKS — there is no separate admin
+  issuer. Contrast **scope** (tenant runtime authorization) and **roles** (the user).
+
+- **Audit log** — the append-only `audit_logs` collection recording every management mutation (who, what,
+  when, which tenant). The per-actor accountability ADR-0003 said a static admin secret could not provide.
+
+- **MCP management server** — the Model Context Protocol face of the management plane (`npm run mcp`,
+  stdio JSON-RPC). A thin adapter over the same service layer + admin-auth + audit as the HTTP API — one
+  authorization model, two transports — so agents can drive onboarding and rotation as typed tools.
+
+- **Admin console** — the operator-facing web app (`@fps4/identity-service-console`, Next.js) over
+  `/admin/v1`. A thin server-side client holding no database credentials; the admin token never reaches
+  the browser. Distinct from the consumer-facing `<Login/>` widget shipped in `react/`.

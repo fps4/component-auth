@@ -1,12 +1,14 @@
 ---
 title: Architecture
+summary: How identity-service is built — the service, SDK, React widget, and admin console; the token-issuance flow; multi-tenancy; and the authenticated management plane.
 status: current
-last_updated: 2026-06-07
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/reference/api.md
   - docs/guides/tenant-config.md
   - docs/overview.md
+  - docs/design/decisions/0007-management-api-mcp-and-standalone-identity-service.md
 ---
 
 # Architecture
@@ -15,9 +17,11 @@ The **identity-service** platform separates authentication responsibilities into
 
 ## Components
 
-- **Service (`service/`)** – Node.js + Express API hosting OAuth 2.0 and legacy session endpoints. It validates tenants, persists sessions and token metadata in MongoDB, manages RSA signing keys, and issues JWT access tokens for downstream services.
+- **Service (`service/`)** – Node.js + Express API hosting OAuth 2.0, legacy session endpoints, and the authenticated `/admin/v1` management plane. It validates tenants, persists sessions and token metadata in MongoDB, manages RSA signing keys, issues JWT access tokens for downstream services, and records every management mutation to an append-only audit log.
+- **MCP server (`service/src/mcp/`)** – A stdio JSON-RPC server (`npm run mcp`) exposing the management operations as agent tools. A thin protocol adapter over the **same** service layer and the **same** admin-auth + audit path as the HTTP admin API — one authorization model, one audit trail, two transports (ADR-0007).
 - **SDK (`sdk/`)** – Headless TypeScript client wrapping the HTTP surface: the OAuth client-credentials helper, the Google login helpers, and the local register/login helpers. No UI; safe server-side.
 - **React (`react/`)** – Optional, opt-in package (`@fps4/identity-service-react`) shipping a drop-in `<Login/>` for the local IdP. Separate package so server-side consumers never pull in React.
+- **Console (`console/`)** – Optional operator admin console (`@fps4/identity-service-console`, Next.js). A thin **server-side** client over `/admin/v1` — dashboards plus tenant/client/user/key management. Holds no DB credentials and never exposes the admin token to the browser (ADR-0007). Distinct from the consumer-facing `<Login/>`.
 - **Docs (`docs/`)** – Architecture, API, and configuration references to help consumers integrate quickly.
 
 ## High-Level Flow
@@ -35,11 +39,21 @@ flowchart LR
         session["Session Core"]
         keys["Key Manager"]
     end
-    db[("MongoDB<br/>tenants · clients · sessions<br/>tokens · key_store · logs")]
+    db[("MongoDB<br/>tenants · clients · users · sessions<br/>tokens · authorizations · key_store · audit_logs")]
+    admin["Operator / Agent"]
+    subgraph mgmt["Management plane (ADR-0007)"]
+        api["/admin/v1 (HTTP)"]
+        mcp["MCP server"]
+        console["Admin console (Next.js)"]
+    end
 
     client -->|"POST /oauth2/token"| svc
     svc -->|"Bearer token"| client
     svc --> db
+    admin -->|"admin-scoped token"| api
+    admin -->|"MCP tools"| mcp
+    console -->|"server-side"| api
+    mgmt --> svc
 ```
 
 ## Multi-Tenancy Model
@@ -54,6 +68,7 @@ flowchart LR
 - The service runs as a stateless container driven entirely by environment variables (`service/.env.example` documents all knobs).
 - MongoDB is the only persistent dependency. `docker/compose.yaml` paired with the dev/prod overlays (`docker/compose.dev.yaml`, `docker/compose.prod.yaml`) provisions Mongo and the service for local development and the deployment workflow.
 - RSA signing keys are stored in the `key_store` collection. Key rotation utilities mint new keys, demote the previous key to `inactive`, and expose the public JWKS at `/.well-known/jwks.json` for verifiers.
+- A scheduled nightly `mongodump` ships an **encrypted** snapshot off-host for point-in-time recovery (`docker/backup.sh`); seed-as-code (ADR-0006) remains the from-git definition floor. See the [deployment guide](../guides/deployment.md).
 
 ## OAuth 2.0 Architecture Highlights
 
@@ -65,7 +80,31 @@ flowchart LR
   - `oauth_authorizations` – Short-lived, TTL-swept user-login records (PKCE challenge + state + nonce, then the single-use code and captured identity) for the Google SSO flow.
   - `users` – Local-credential users (RQ-0002): per-tenant email, scrypt password hash, stable subject id, status, and brute-force lockout counters.
   - `key_store` – RSA key material with status flags for rotation and JWKS publishing.
+  - `audit_logs` – Append-only record of every management-plane mutation (who/what/when/which tenant) — the per-actor accountability the admin plane provides (ADR-0007).
 - **Rate Limiting** – Tenants may override default token throughput (`tokensPerMinute`) and refresh-token budgets via their OAuth config.
+
+## Management plane (ADR-0007)
+
+Day-2 operations — onboarding a tenant, registering or rotating a client, creating/locking a user,
+rotating a signing key — run on an authenticated management plane mounted at `/admin/v1` (toggleable;
+network-restricted, kept off the public token-issuance surface by default). Three faces sit on **one**
+service layer (`service/src/services/admin.ts`):
+
+- **HTTP admin API** (`service/src/routes/admin-routes.ts`) — idempotent, audited endpoints for tenants, clients, users, keys, plus aggregate `stats` and an `audit` query (feeds the console dashboards).
+- **MCP server** (`service/src/mcp/server.ts`) — the same operations as agent tools over stdio JSON-RPC.
+- **Admin console** (`console/`) — a thin server-side Next.js client over the HTTP API.
+
+The plane reuses the **idempotent service layer** the seed loader already uses, so an API call and a
+re-seed converge on the same state. Admin principals authenticate as ordinary `client_credentials`
+clients whose token carries an `admin` scope (or a granular `admin:<area>` scope for least-privilege
+agents), verified against this service's **own** JWKS (`service/src/core/admin-auth.ts`). Every mutation
+is written to the `audit_logs` collection. This is the admin-auth layer whose **absence** ADR-0003 cited
+as the reason to keep provisioning off the wire — built first, then the management surface exposed over it.
+
+Seed-as-code (ADR-0003/0006) is retained but **demoted** to the bootstrap and disaster-recovery floor;
+nightly encrypted off-host `mongodump` backups provide point-in-time recovery of runtime state (issued
+tokens, authorizations, lockouts, key history, audit) that re-seeding from git cannot restore — see the
+[deployment guide](../guides/deployment.md).
 
 ## Extensibility
 

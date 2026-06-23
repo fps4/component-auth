@@ -1,6 +1,8 @@
 ---
 title: "0002: An optional React UI package (drop-in Login), separate from the headless SDK"
+summary: "Ship the drop-in React Login as a separate, opt-in package so server-side consumers of the headless SDK never pull in React."
 status: accepted
+last_updated: 2026-06-01
 date: 2026-06-01
 related:
   - 0001-local-credential-idp.md

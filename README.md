@@ -1,19 +1,26 @@
 # identity-service
 
-Multi-tenant authentication building blocks shared across products. The project ships a standalone service for session management plus a lightweight SDK for consumers.
+A standalone, multi-tenant identity service (a self-hosted IdP) shared across products. It ships the
+service (OAuth 2.0 + OIDC token issuance), a headless SDK, an optional drop-in React `<Login/>`, an
+authenticated management plane (HTTP `/admin/v1` + an MCP server for agents), and an optional operator
+admin console. It owns **authentication** (who you are); consuming products keep their own
+**authorization** (what you may do).
 
 ## Project Layout
 
 ```
 identity-service/
- ├── docker/           # Docker Compose base + env-specific overrides
+ ├── docker/           # Docker Compose base + overrides; backup.sh (nightly encrypted backups)
  ├── service/          # REST API + Docker assets
- │    ├── src/         # Express app, core logic, models
+ │    ├── src/         # Express app, OAuth + session cores, admin plane, MCP server, models
  │    ├── Dockerfile   # Container build
  ├── sdk/              # Headless TypeScript client for the API
  │    └── src/
  ├── react/            # Optional React UI: drop-in <Login/> (@fps4/identity-service-react)
  │    └── src/
+ ├── console/          # Optional operator admin console (Next.js, @fps4/identity-service-console)
+ │    └── app/
+ ├── config/           # seed.example.yaml → seed.yaml (gitignored): tenants + clients + users
  ├── docs/             # Two-plane docs: design/ · reference/ · guides/ · product/ (index: docs/README.md)
  └── README.md
 ```
@@ -50,6 +57,7 @@ The service listens on `PORT` (default `7305`). Health check at `GET /health`.
 - `GET /.well-known/jwks.json` – JWKS for verifying issued tokens.
 - `POST /v1/tenants/:tenantId/sessions` – validate tenant, persist session, issue legacy session JWT (in migration).
 - `PATCH /v1/sessions/:sessionId` – attach contact identifiers or cookie context.
+- `/admin/v1/*` – the authenticated **management plane** (ADR-0007): tenants, clients, users, signing keys, stats, and audit. Network-restricted, scoped per actor, append-only audited. The same operations are exposed to agents over an **MCP server** (`npm run mcp`).
 - See `docs/reference/api.md` for full payloads and responses.
 
 ## SDK Usage
@@ -120,15 +128,24 @@ import { Login } from '@fps4/identity-service-react';
 
 See [`react/README.md`](react/README.md) for styling (Tailwind/shadcn) and the full API.
 
+### Operator admin console
+
+For day-2 operations, `@fps4/identity-service-console` (in `console/`) is an **optional** Next.js app — a
+thin server-side client over the `/admin/v1` management plane (ADR-0007): dashboards plus tenant, client,
+user, and signing-key management. The admin bearer token stays in server env and never reaches the
+browser; no direct database access. Distinct from the consumer-facing `<Login/>` widget. See
+[`console/README.md`](console/README.md).
+
 ## Docs
 
 Docs follow a two-plane structure — see [`docs/README.md`](docs/README.md) for the full index, or
 [`docs/overview.md`](docs/overview.md) for the landing.
 
-- [`docs/design/architecture.md`](docs/design/architecture.md) – overall architecture and OAuth components.
-- [`docs/reference/api.md`](docs/reference/api.md) – endpoint contract and token shape.
+- [`docs/design/architecture.md`](docs/design/architecture.md) – overall architecture, OAuth components, and the management plane.
+- [`docs/reference/api.md`](docs/reference/api.md) – endpoint contract (incl. `/admin/v1`) and token shape.
 - [`docs/guides/tenant-config.md`](docs/guides/tenant-config.md) – tenant onboarding & OAuth configuration.
-- [`docs/guides/deployment.md`](docs/guides/deployment.md) – how the service is deployed.
+- [`docs/guides/deployment.md`](docs/guides/deployment.md) – how the service is deployed, plus nightly backups & recovery.
+- [`console/README.md`](console/README.md) – the optional operator admin console over `/admin/v1`.
 - [`docs/product/`](docs/product) – the `RQ-*` functional specs (e.g. `RQ-0001` adds user identity via Google SSO, issued as a verifiable JWT).
 - [`docs/design/decisions/`](docs/design/decisions) – architecture decision records (ADRs).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) – how to build & test the packages.

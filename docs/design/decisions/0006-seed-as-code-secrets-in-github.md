@@ -1,6 +1,8 @@
 ---
 title: "0006: Seed definition in git; secret values SOPS-encrypted in git, one master key in GitHub"
+summary: "Commit the seed definition to git with environment secret references, and commit secret values SOPS-encrypted under one age master key, so a wiped database rebuilds from git alone."
 status: accepted
+last_updated: 2026-06-11
 date: 2026-06-11
 related:
   - ./0003-seed-config-not-admin-api.md

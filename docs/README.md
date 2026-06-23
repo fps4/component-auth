@@ -1,7 +1,8 @@
 ---
 title: identity-service documentation index
+summary: The documentation index for identity-service — the two-plane Docs/Delivery layout and where each shelf lives.
 status: current
-last_updated: 2026-06-07
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/overview.md
@@ -22,8 +23,8 @@ Start at [`overview.md`](./overview.md) — the product landing.
 | **Overview** | [`overview.md`](./overview.md) | The product landing — what it is, status, where to go next. |
 | **Product** | [`product/`](./product) | Intent + functional specs (`RQ-*`) — the *what & why*. |
 | **Design** | [`design/`](./design) | [`architecture.md`](./design/architecture.md) + ADRs ([`decisions/`](./design/decisions)) — the *how & why-decided*. |
-| **Reference** | [`reference/`](./reference) | The exact lookup surface — [`api.md`](./reference/api.md) (endpoints, token contract, JWKS). The [`GLOSSARY.md`](../GLOSSARY.md) lives at the repo root. |
-| **Guides** | [`guides/`](./guides) | How-to / operations / onboarding — [`tenant-config.md`](./guides/tenant-config.md), [`deployment.md`](./guides/deployment.md), [`resource-server-integration.md`](./guides/resource-server-integration.md). |
+| **Reference** | [`reference/`](./reference) | The exact lookup surface — [`api.md`](./reference/api.md) (OAuth + `/admin/v1` endpoints, token contract, JWKS) and [`product-runtime-credential.md`](./reference/product-runtime-credential.md). The [`GLOSSARY.md`](../GLOSSARY.md) lives at the repo root. |
+| **Guides** | [`guides/`](./guides) | How-to / operations / onboarding — [`tenant-config.md`](./guides/tenant-config.md), [`deployment.md`](./guides/deployment.md) (deploy + nightly backups & recovery), [`resource-server-integration.md`](./guides/resource-server-integration.md). |
 
 ## Delivery plane — work (you track)
 
@@ -39,6 +40,11 @@ work warrants it.
 | [RQ-0003 — Reusable React login component](./product/RQ-0003-react-login-component.md) | [ADR-0002](./design/decisions/0002-optional-react-ui-package.md) |
 | [RQ-0004 — Seed config provisioning](./product/RQ-0004-seed-config-provisioning.md) | [ADR-0003](./design/decisions/0003-seed-config-not-admin-api.md) |
 | [RQ-0005 — User roles in the identity token](./product/RQ-0005-user-roles-in-identity-token.md) | [ADR-0005](./design/decisions/0005-decentralized-authorization.md) |
+| [RQ-0006 — Seed-as-code & recovery](./product/RQ-0006-seed-as-code-and-recovery.md) | [ADR-0006](./design/decisions/0006-seed-as-code-secrets-in-github.md) |
+
+The **management plane** (HTTP `/admin/v1` + MCP + admin console) and the repositioning as a standalone
+identity service are decided in [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md),
+which revisits the ADR-0001/0003 deferral of an admin-authenticated API once an admin-auth layer existed.
 
 ## Agent-facing files (repo root)
 

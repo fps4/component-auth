@@ -1,21 +1,30 @@
 ---
-title: Component Auth API
+title: identity-service API
+summary: The identity-service endpoint contract — OAuth 2.0 token issuance, legacy sessions, JWKS, and the authenticated /admin/v1 management plane.
 status: current
-last_updated: 2026-06-07
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/design/architecture.md
   - docs/guides/tenant-config.md
   - docs/product/RQ-0001-workspace-user-identity-google-sso.md
+  - docs/design/decisions/0007-management-api-mcp-and-standalone-identity-service.md
 ---
 
-# Component Auth API
+# identity-service API
 
-The service exposes OAuth 2.0 endpoints under `/oauth2/*` and legacy session routes under `/v1/*`. Responses are JSON unless noted otherwise.
+The service exposes OAuth 2.0 endpoints under `/oauth2/*`, legacy session routes under `/v1/*`, and an
+authenticated management plane under `/admin/v1/*` (ADR-0007). Responses are JSON unless noted otherwise.
 
 ## Authentication
 
-The service currently relies on network-level controls (private network, API gateway, etc.). Downstream consumers can optionally send an `Authorization` header; the service will pass it to logging middleware but does not verify it yet.
+The **token-issuance and session surfaces** (`/oauth2/*`, `/v1/*`) rely on network-level controls
+(private network, API gateway, etc.) plus the per-grant client authentication described below; a
+consumer's own `Authorization` header is passed to logging but not verified here.
+
+The **management plane** (`/admin/v1/*`) is authenticated: every request must present an admin-scoped
+`client_credentials` bearer token (see [Management plane](#admin-v1-management-plane)). It is also
+network-restricted — kept off the public token-issuance surface by default.
 
 ## Headers
 
@@ -295,5 +304,60 @@ Returns the JSON Web Key Set (JWKS) for verifying RS256 tokens issued by the ser
       "e": "AQAB"
     }
   ]
+}
+```
+
+---
+
+<a id="admin-v1-management-plane"></a>
+
+## `/admin/v1/*` — management plane (ADR-0007)
+
+The authenticated, audited surface for day-2 operations: tenants, clients, users, signing keys, and
+statistics. Mounted at `/admin/v1` (override with `ADMIN_API_BASE_PATH`; disable the whole surface with
+`ADMIN_API_ENABLED=false`). The HTTP API, the [MCP server](../design/architecture.md#management-plane-adr-0007),
+and the [admin console](../../console/README.md) all sit on the same service layer, auth, and audit path.
+
+### Authentication & scopes
+
+- Every request must carry `Authorization: Bearer <token>`, where the token is a **`client_credentials`**
+  access token minted by this service (verified against its own JWKS) for a client whose token carries an
+  admin scope.
+- The superscope **`admin`** (configurable via `ADMIN_API_SCOPE`) satisfies any admin route. For
+  least-privilege agents, granular per-area scopes also satisfy their own routes:
+  `admin:tenants`, `admin:clients`, `admin:users`, `admin:keys`, `admin:stats`.
+- Missing/invalid/expired token → `401 unauthorized`; valid token without the required scope → `403 forbidden`.
+- Every **mutation** is written to the append-only `audit_logs` collection (principal, action, method,
+  path, target, status, tenant).
+
+### Endpoints
+
+| Method & path | Scope | Purpose |
+|---|---|---|
+| `GET /tenants` | `admin:tenants` | List tenants. |
+| `GET /tenants/{id}` | `admin:tenants` | Fetch one tenant. |
+| `POST /tenants` | `admin:tenants` | Onboard or update a tenant (idempotent upsert). |
+| `GET /tenants/{tenantId}/clients` | `admin:clients` | List a tenant's OAuth clients. |
+| `POST /clients` | `admin:clients` | Register a client. **The client secret is returned once** — only its hash is persisted. |
+| `POST /clients/{id}/rotate-secret` | `admin:clients` | Rotate a client secret (returns the new secret once). |
+| `POST /users` | `admin:users` | Create a local user. |
+| `POST /users/reset-password` | `admin:users` | Reset a local user's password (`{ tenantId, email, password }`). |
+| `POST /users/status` | `admin:users` | Set user status (`active` \| `disabled`). |
+| `POST /users/unlock` | `admin:users` | Clear brute-force lockout counters. |
+| `POST /keys/rotate` | `admin:keys` | Mint a new active signing key; demote the previous to `inactive`. |
+| `GET /keys` | `admin:keys` | Inspect `key_store` status. |
+| `GET /stats` | `admin:stats` | Aggregate counts for the dashboards (see below). |
+| `GET /audit` | `admin:stats` | Query the audit log. |
+
+`GET /stats` returns rollups for the console dashboards:
+
+```json
+{
+  "tenants": { "total": 4, "active": 4 },
+  "clients": { "total": 9 },
+  "users":   { "total": 120, "locked": 1, "disabled": 2 },
+  "tokens":  { "accessLastHour": 87, "accessLastDay": 1432, "activeRefresh": 64 },
+  "keys":    { "active": 1 },
+  "at": "2026-06-23T02:30:00.000Z"
 }
 ```
