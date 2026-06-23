@@ -1,8 +1,9 @@
 ---
 title: "0006: Seed definition in git; secret values SOPS-encrypted in git, one master key in GitHub"
-summary: "Commit the seed definition to git with environment secret references, and commit secret values SOPS-encrypted under one age master key, so a wiped database rebuilds from git alone."
-status: accepted
-last_updated: 2026-06-11
+summary: "Commit the seed definition to git with environment secret references, and commit secret values SOPS-encrypted under one age master key, so a wiped database rebuilds from git alone. SUPERSEDED by ADR-0008 (SOPS dropped; the DB is the system of record)."
+status: superseded
+superseded_by: ./0008-drop-sops-db-is-system-of-record.md
+last_updated: 2026-06-23
 date: 2026-06-11
 related:
   - ./0003-seed-config-not-admin-api.md

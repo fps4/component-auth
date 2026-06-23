@@ -1,6 +1,0 @@
-# SOPS config (ADR-0006 / RQ-0006): how `sops` encrypts the committed secret backup files.
-# The age RECIPIENT below is public — it only lets you ENCRYPT. Decryption needs the matching age
-# private key (the "master key"), held as the `SOPS_AGE_KEY` GitHub Actions secret and by the operator.
-creation_rules:
-  - path_regex: config/secrets\..*\.sops\.yaml$
-    age: age1nrlz6lv8rk37t4qtlkq5w90ewer9hk6uy7k9t04kchq6sc74qszq0y9qkh

@@ -28,7 +28,7 @@ CONTAINER="${IDENTITY_CONTAINER:-identity-service}"
 CLIENT_ID="${IDENTITY_ADMIN_CLIENT_ID:-identity-admin-mcp}"
 SCOPE="${IDENTITY_ADMIN_SCOPE:-admin}"
 TOKEN_URL="${IDENTITY_TOKEN_URL:-http://localhost:7305/oauth2/token}"   # localhost = the service, inside the container
-SECRET_FILE="${ADMIN_SECRET_FILE:-/opt/identity-service/docker/.mcp-admin.env}"
+SECRET_FILE="${ADMIN_SECRET_FILE:-$(dirname "$0")/.mcp-admin.env}"
 
 # Resolve the client secret. Preference order:
 #   1. an explicit IDENTITY_ADMIN_CLIENT_SECRET in this (host) environment;

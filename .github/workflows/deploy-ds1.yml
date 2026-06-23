@@ -63,11 +63,11 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
           # Runtime secret for the maestro fleet-telemetry channel. Must equal the seeded
-          # MAESTRO_COMPONENTS_DS1_SECRET (config/secrets.ds1.sops.yaml). Unset → telemetry stays inert.
+          # seeded components-ds1 client secret (in the live DB — ADR-0008). Unset → telemetry stays inert.
           MAESTRO_RUNTIME_CLIENT_SECRET: ${{ secrets.MAESTRO_RUNTIME_CLIENT_SECRET }}
           # Management-plane admin client secret (ADR-0007). Injected into the service container so the
           # in-container MCP launcher (docker/mcp-admin.sh) can mint an admin token. Must equal the
-          # seeded identity-admin-mcp secret (config/secrets.ds1.sops.yaml). Unset → MCP admin auth off.
+          # seeded identity-admin-mcp client secret (in the live DB — ADR-0008). Unset → MCP admin auth off.
           IDENTITY_ADMIN_CLIENT_SECRET: ${{ secrets.IDENTITY_ADMIN_CLIENT_SECRET }}
         run: |
           umask 077
@@ -137,8 +137,8 @@ jobs:
           if [ "${actual:-0}" -lt "${expected:-0}" ]; then
             echo "::error::Service-authorization gap: only ${actual:-0}/${expected} product_runtime client(s) seeded on ds1."
             echo "::error::Managed-product runtimes cannot mint a token, so maestro will drop their telemetry/logs."
-            echo "::error::Re-seed ds1 from service/ (SOPS master key unlocks the client secrets):"
-            echo "::error::  sops exec-env ../config/secrets.ds1.sops.yaml 'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=$DB npm run seed'"
+            echo "::error::Restore from the nightly backup, or bootstrap-seed with the values in the env (ADR-0008), from service/:"
+            echo "::error::  MAESTRO_COMPONENTS_DS1_SECRET=… MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=$DB npm run seed"
             exit 1
           fi
           echo "OK: all ${expected:-0} product_runtime client(s) present — runtimes can authorize to maestro."

@@ -1,16 +1,19 @@
-# ds1 identity seed — the DURABLE, recoverable definition (ADR-0006 / RQ-0006).
+# ds1 identity BOOTSTRAP definition (non-secret). The live MongoDB is the system of record (ADR-0007);
+# this file only stands up a brand-new empty deployment. Day-2 changes go through the management plane
+# (/admin/v1 + MCP + console), not a re-seed.
 #
 # COMMITTED on purpose: every secret here is an ${ENV_VAR} reference resolved at run time, so this file
-# holds NO plaintext. The secret VALUES live in the committed, SOPS-encrypted config/secrets.ds1.sops.yaml
-# (unlocked by the SOPS_AGE_KEY master key — ADR-0006). To rebuild the auth DB after a loss, from service/:
+# holds NO plaintext. SOPS is DROPPED (ADR-0008, superseding ADR-0006): there is no encrypted values file
+# in git. For the rare bootstrap of an empty DB, supply the ${ENV} values from the environment (CI/Actions
+# secrets or an operator shell), e.g. from service/:
 #
-#     SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
-#     sops exec-env ../config/secrets.ds1.sops.yaml \
-#       'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
+#     IDENTITY_ADMIN_CLIENT_SECRET=… SEED_ADMIN_PASSWORD=… MAESTRO_COMPONENTS_DS1_SECRET=… \
+#       MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed
 #
-# Idempotent: tenants + clients are upserted on every run; existing users are left untouched
-# (insert-if-absent), so a re-run never resets a password. Use `npm run manage-users -- set-password …`
-# to change a password. See docs/guides/deployment.md.
+# Disaster recovery is a RESTORE from the nightly off-host backup (docker/backup.sh — ADR-0008), which
+# also recovers runtime state a re-seed cannot. Idempotent: tenants + clients are upserted on every run;
+# existing users are left untouched (insert-if-absent). Use `npm run manage-users -- set-password …` to
+# change a password. See docs/guides/deployment.md.
 
 tenants:
   - id: demo
@@ -175,8 +178,8 @@ tenants:
   # identity-service's OWN management-plane principal (ADR-0007). A client_credentials client whose
   # token carries the `admin` scope — the credential the /admin/v1 API, the MCP server, and the admin
   # console authenticate with. Isolated in its own tenant so management authority never rides on a
-  # product tenant. Seed-as-code: the secret is the ${IDENTITY_ADMIN_CLIENT_SECRET} reference, whose
-  # value lives SOPS-encrypted in config/secrets.ds1.sops.yaml (ADR-0006). Mint a token with:
+  # product tenant. The secret is the ${IDENTITY_ADMIN_CLIENT_SECRET} reference, resolved from the env at
+  # seed time and injected into the container by the deploy (GitHub Actions secret — ADR-0008). Mint with:
   #   curl -s -XPOST $AUTH_JWT_ISSUER/oauth2/token -d grant_type=client_credentials \
   #        -d client_id=identity-admin-mcp -d client_secret=$IDENTITY_ADMIN_CLIENT_SECRET -d scope=admin
   - id: identity-service-ops

@@ -73,66 +73,50 @@ host-port access). `workflow_dispatch` runs it on demand.
 
 The SSH / `DOCKER_HOST` runbook above still works for a laptop-driven deploy or a host without the runner.
 
-## Seed & recovery (identity data) — ADR-0006 / RQ-0006
+## System of record, seeding & recovery — ADR-0007 / ADR-0008
 
-The auth data (tenants, app clients, users) lives in MongoDB. Both halves are durable in git:
+The **live MongoDB is the system of record** for the auth data (tenants, app clients, users, secrets).
+SOPS/seed-as-code is **dropped** (ADR-0008, superseding ADR-0006): there is no encrypted secret file in
+git, and no `age` master key.
 
-- **Definition** — `config/seed.yaml` (committed; only `${ENV}` references, no plaintext).
-- **Secret values** — `config/secrets.ds1.sops.yaml` (committed; **SOPS/age-encrypted**, values only).
-  The single **master key** that decrypts it is the `age` private key, held as the `SOPS_AGE_KEY` GitHub
-  Actions secret (and an operator's offline copy); the public recipient is in `.sops.yaml`.
+- **Bootstrap definition** — `config/seed.yaml` (committed; only `${ENV}` references, no plaintext). It
+  stands up a brand-new **empty** deployment; the deploy keeps the mongo data volume, so steady-state data
+  is never wiped. Day-2 changes go through the **management plane** (`/admin/v1` + MCP + console — ADR-0007),
+  not a re-seed.
+- **Bootstrap seed** (rare — empty DB only): supply the `${ENV}` values from the environment (CI/Actions
+  secrets or an operator shell), from `service/`, against ds1's Mongo on its published port `27019`:
 
-The deploy keeps the mongo data volume, so steady-state data is not wiped; re-seed only for first setup,
-a new tenant/client, or after a loss.
+  ```bash
+  IDENTITY_ADMIN_CLIENT_SECRET=… MAESTRO_COMPONENTS_DS1_SECRET=… SEED_ADMIN_PASSWORD=… \
+    MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed
+  ```
 
-**Prerequisites:** `sops` + `age` (`brew install sops age`) and the master key in the environment, e.g.
-`export SOPS_AGE_KEY=$(gh secret …)`  — or point `SOPS_AGE_KEY_FILE` at a local key file.
+  Idempotent: tenants/clients are upserted; **existing users are left untouched** — change a password with
+  `npm run manage-users -- set-password --tenant=<id> --email=<e> --password=<p>`. A runtime client secret
+  must stay equal to its consumer-repo mirror (`MAESTRO_RUNTIME_CLIENT_SECRET` in the gateway/copilot repos,
+  US-0086).
 
-**Recover / re-seed** — `sops exec-env` decrypts the backup and injects the values the seeder references
-(from `service/`, against ds1's Mongo on its published port `27019`):
+### Nightly backups & point-in-time recovery — ADR-0008
 
-```bash
-SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
-sops exec-env ../config/secrets.ds1.sops.yaml \
-  'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
-```
-
-Idempotent: tenants/clients are upserted; **existing users are left untouched** — change a password with
-`npm run manage-users -- set-password --tenant=<id> --email=<e> --password=<p>`. Passwords are stored as
-scrypt hashes; plaintext lives only inside the encrypted file and with the human owner.
-
-**Edit / rotate a secret:** `sops config/secrets.ds1.sops.yaml` (opens the decrypted values in `$EDITOR`,
-re-encrypts on save), then re-seed. A runtime client secret must stay equal to its consumer-repo mirror
-(`MAESTRO_RUNTIME_CLIENT_SECRET` in the gateway / copilot repos, US-0086).
-
-## Nightly backups & point-in-time recovery — ADR-0007
-
-Two recovery paths cover different failure modes:
-
-- **Seed-from-git (ADR-0006)** rebuilds the *intended topology* (tenants/clients/users + secrets). Use it
-  for a from-scratch bootstrap or when there is no good backup.
-- **Nightly backup (this section)** restores *actual runtime state* — issued tokens, authorizations,
-  brute-force lockouts, signing-key history, and the audit log — to last night. Preferred for data loss.
-
-`docker/backup.sh` runs on the ds1 host: it dumps the DB via the mongo container, **age-encrypts** the
-archive to the recipient in `.sops.yaml` (so the **same master key** that unlocks the SOPS secrets
-decrypts the backup — ADR-0006), writes it off-host, and prunes by retention. Schedule it from the host
-crontab (nightly at 02:30, 30-day retention):
+The **primary recovery path is a restore from a nightly backup** (it recovers the full runtime state —
+issued tokens, authorizations, lockouts, signing-key history, audit log — which a re-seed cannot). Backups
+are **plaintext** (`docker/backup.sh`), written to a controlled off-container path whose access control is
+the protection. `docker/backup.sh` dumps the DB via the mongo container and prunes by retention. Schedule
+it from the host crontab (nightly at 02:30, 30-day retention):
 
 ```cron
-30 2 * * *  AGE_RECIPIENT=age1nrlz6lv8rk37t4qtlkq5w90ewer9hk6uy7k9t04kchq6sc74qszq0y9qkh \
-            BACKUP_DIR=/mnt/backups/identity-service RETENTION_DAYS=30 \
-            /opt/identity-service/docker/backup.sh backup >> /var/log/is-backup.log 2>&1
+30 2 * * *  /home/<user>/identity-service/docker/backup.sh backup >> ~/is-backup.log 2>&1
 ```
 
-Point `BACKUP_DIR` at off-host storage (an NFS mount), or set `RCLONE_REMOTE=s3:bucket/identity-service`
-to copy each snapshot to object storage. **Restore** a snapshot (needs the master key — `SOPS_AGE_KEY`):
+`BACKUP_DIR` defaults to `/mnt/backup/identity-service`. **Restore** a snapshot (DROPS existing
+collections; confirm when prompted):
 
 ```bash
-SOPS_AGE_KEY='AGE-SECRET-KEY-…' docker/backup.sh restore /mnt/backups/identity-service/identity-service-20260623-023000.archive.gz.age
+docker/backup.sh restore /mnt/backup/identity-service/identity-service-20260623-023000.archive.gz
 ```
 
-Only ciphertext ever leaves the host, so backups stay sovereign (plaintext never lands in storage).
+> Backups contain plaintext data — treat the backup path as sensitive (rely on its filesystem access
+> control / disk encryption).
 
 ## Rename cutover: component-auth → identity-service (one-time) — ADR-0007
 
@@ -171,19 +155,18 @@ The **one** secret value lives in **two** places (it must be identical in both �
 
 - the **`IDENTITY_ADMIN_CLIENT_SECRET` GitHub Actions secret** → the deploy injects it into the
   `identity-service` container env (`deploy-ds1.yml`), so the in-container launcher can **mint** a token;
-- the **SOPS seed file** → so the seeded client's secret **hash** matches what the mint presents.
+- the **seeded client in the live DB** → so the stored secret **hash** matches what the mint presents.
 
 Provision it:
 
 1. **Set the GitHub secret** (used by the pipeline): `gh secret set IDENTITY_ADMIN_CLIENT_SECRET`.
-2. **Set the same value in seed-as-code (ADR-0006) and re-seed** so the client exists in Mongo with that
-   secret hashed:
+2. **Seed the client with the same value** so it exists in Mongo with that secret hashed (against ds1's
+   Mongo on its published port `27019`; SOPS dropped per ADR-0008 — pass the value via the env):
 
    ```bash
-   sops config/secrets.ds1.sops.yaml   # add: IDENTITY_ADMIN_CLIENT_SECRET: <the same value>
-   # then, from service/, the usual seed run (idempotent — upserts the client):
-   SOPS_AGE_KEY='AGE-SECRET-KEY-…' sops exec-env ../config/secrets.ds1.sops.yaml \
-     'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
+   # from service/ (the seed upserts the identity-service-ops tenant + identity-admin-mcp client):
+   IDENTITY_ADMIN_CLIENT_SECRET=<the same value> SEED_FILE=../config/seed.yaml \
+     MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed
    ```
 
 3. **Mint a token** (any caller — the console, `curl`, a test):
@@ -205,17 +188,18 @@ issuer — plus `IDENTITY_ADMIN_CLIENT_SECRET`, injected by the deploy).
 
 1. **No host-side secret is needed on ds1** — the launcher reads the secret from the container env. (For
    local/dev, or if you prefer not to inject it into the container, the launcher also accepts a host
-   `IDENTITY_ADMIN_CLIENT_SECRET` env var or `/opt/identity-service/docker/.mcp-admin.env`, `chmod 600`.)
-2. A remote MCP client connects over SSH (stdio passes straight through):
+   `IDENTITY_ADMIN_CLIENT_SECRET` env var or a `.mcp-admin.env` file next to the script, `chmod 600`.)
+2. A remote MCP client connects over SSH (stdio passes straight through). The launcher lives at
+   `~/identity-service/docker/mcp-admin.sh` on the ds1 host:
 
    ```bash
-   ssh ds1 /opt/identity-service/docker/mcp-admin.sh
+   ssh ds1 /home/fgurbanov/identity-service/docker/mcp-admin.sh
    ```
 
    For Claude Code, register it once at user scope so every project sees it:
 
    ```bash
-   claude mcp add --scope user --transport stdio identity-service-admin -- ssh ds1 /opt/identity-service/docker/mcp-admin.sh
+   claude mcp add --scope user --transport stdio identity-service-admin -- ssh ds1 /home/fgurbanov/identity-service/docker/mcp-admin.sh
    ```
 
    The secret never leaves the ds1 host; the laptop config holds only the SSH command.
