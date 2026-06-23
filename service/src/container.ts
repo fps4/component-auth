@@ -2,6 +2,7 @@ import { CONFIG } from './config.js';
 import { createAuthorizer, createSessionJwtSigner } from './core/index.js';
 import { createOAuthServer } from './oauth/server.js';
 import { createUserService } from './services/users.js';
+import { createAdminService } from './services/admin.js';
 import { getMasterConnection } from './utils/db.js';
 import { makeModels } from './models/index.js';
 import logger from './utils/logger.js';
@@ -27,6 +28,12 @@ export const oauthServer = createOAuthServer({
 });
 
 export const userService = createUserService({
+  getMasterConnection,
+  makeModels,
+  logger
+});
+
+export const adminService = createAdminService({
   getMasterConnection,
   makeModels,
   logger

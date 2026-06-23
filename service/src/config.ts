@@ -51,6 +51,18 @@ export const CONFIG = {
       maxRefreshTokens: toNumber(process.env.OAUTH_TENANT_MAX_REFRESH_TOKENS, 10_000)
     }
   },
+  // Management plane (ADR-0007): the authenticated admin API (/admin/v1) + MCP server. Admin principals
+  // are OAuth client-credentials clients whose token carries the `requiredScope` below (default `admin`),
+  // verified against this service's own JWKS. `enabled` lets a deployment turn the whole surface off; on
+  // ds1 it should be bound off the public tunnel (network-restricted) — see ADR-0007.
+  admin: {
+    enabled: (process.env.ADMIN_API_ENABLED ?? 'true') !== 'false',
+    basePath: process.env.ADMIN_API_BASE_PATH ?? '/admin/v1',
+    // The scope a client-credentials token must carry to reach the management plane. Granular
+    // per-area scopes (`admin:tenants`, `admin:users`, …) also satisfy their own routes for
+    // least-privilege agents; this superscope satisfies all of them.
+    requiredScope: process.env.ADMIN_API_SCOPE ?? 'admin'
+  },
   // Upstream Google OIDC app (RQ-0001). A single Google app per deployment federates user login;
   // the issued user token's `aud` is still per-consumer (oauth_clients.audience), not Google's.
   // Endpoints are overridable so tests can inject a stub IdP with no network.

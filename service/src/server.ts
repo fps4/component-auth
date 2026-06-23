@@ -8,6 +8,7 @@ import { MetricsRecorder } from './maestro/metrics.js';
 import { startMaestroTelemetry } from './maestro/telemetry.js';
 import sessionRoutes from './routes/session-routes.js';
 import oauthRoutes from './routes/oauth-routes.js';
+import adminRoutes from './routes/admin-routes.js';
 import {
   refreshTenantOrigins,
   scheduleTenantCorsRefresh,
@@ -95,6 +96,14 @@ async function bootstrap() {
 
   app.use('/oauth2', oauthRoutes);
   app.use('/v1', sessionRoutes);
+
+  // Management plane (ADR-0007): authenticated admin API. Every route is guarded by an admin-scoped
+  // client-credentials token and writes an append-only audit entry. Disable per-deployment with
+  // ADMIN_API_ENABLED=false; on ds1 it must be bound off the public tunnel (network-restricted).
+  if (CONFIG.admin.enabled) {
+    app.use(CONFIG.admin.basePath, adminRoutes);
+    logger.info({ basePath: CONFIG.admin.basePath }, 'management API enabled');
+  }
 
   let server: Server;
 
