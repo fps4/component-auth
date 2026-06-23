@@ -1,0 +1,39 @@
+{
+  "name": "@fps4/identity-service-console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operator admin console for identity-service (ADR-0007). A thin Next.js client over the /admin/v1 management API — dashboards + tenant/client/user management. Reuses the sovereign-copilot/web stack.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 7306",
+    "build": "next build",
+    "start": "next start -p 7306",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.469.0",
+    "next": "^15.1.6",
+    "next-themes": "^0.4.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sonner": "^1.7.2",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "vega": "^5.30.0",
+    "vega-embed": "^6.29.0",
+    "vega-lite": "^5.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.6",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "^15.1.6",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  }
+}
