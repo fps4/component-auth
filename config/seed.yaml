@@ -171,3 +171,28 @@ tenants:
         password: ${SEED_COACH_OFFICER_PASSWORD}
         status: active
         roles: [compliance-officer]
+
+  # identity-service's OWN management-plane principal (ADR-0007). A client_credentials client whose
+  # token carries the `admin` scope — the credential the /admin/v1 API, the MCP server, and the admin
+  # console authenticate with. Isolated in its own tenant so management authority never rides on a
+  # product tenant. Seed-as-code: the secret is the ${IDENTITY_ADMIN_CLIENT_SECRET} reference, whose
+  # value lives SOPS-encrypted in config/secrets.ds1.sops.yaml (ADR-0006). Mint a token with:
+  #   curl -s -XPOST $AUTH_JWT_ISSUER/oauth2/token -d grant_type=client_credentials \
+  #        -d client_id=identity-admin-mcp -d client_secret=$IDENTITY_ADMIN_CLIENT_SECRET -d scope=admin
+  - id: identity-service-ops
+    name: identity-service operations
+    status: active
+    oauth:
+      enabled: true
+      allowedGrantTypes: [client_credentials]
+      allowedScopes: [admin, "admin:tenants", "admin:clients", "admin:users", "admin:keys", "admin:stats"]
+      idp: { provider: local }
+      limits: { tokensPerMinute: 60 }
+    clients:
+      - id: identity-admin-mcp
+        name: identity-service admin (MCP + console)
+        grantTypes: [client_credentials]
+        isConfidential: true
+        secret: ${IDENTITY_ADMIN_CLIENT_SECRET}
+        scopes: [admin]              # full management authority (see ADMIN_SCOPES); request scope=admin
+        subject: admin-mcp@identity-service.fps4.nl   # attributed in the /admin audit log

@@ -1,11 +1,13 @@
 ---
 title: Deployment
+summary: How identity-service is deployed to ds1 — secrets, the CI deploy, nightly backups & recovery, and provisioning the management-plane admin client + MCP server.
 status: current
-last_updated: 2026-06-07
+last_updated: 2026-06-23
 owners: [architect]
 related:
   - docs/design/architecture.md
   - docs/guides/tenant-config.md
+  - docs/design/decisions/0007-management-api-mcp-and-standalone-identity-service.md
 ---
 
 # Deployment
@@ -157,6 +159,55 @@ default `identity-service` is only the dev/test fallback. **Consumer-side breaki
 need coordination: the published SDK package name (`@fps4/component-auth` → `@fps4/identity-service-sdk`)
 and the documented consumer env-var convention (`COMPONENT_AUTH_*` → `IDENTITY_SERVICE_*`, which is each
 consumer's own choice of name).
+
+## Management-plane admin client & MCP server — ADR-0007
+
+The `/admin/v1` API, the MCP server, and the admin console all authenticate with a `client_credentials`
+token carrying the `admin` scope. That principal is seeded as a dedicated tenant + client
+(`identity-service-ops` / `identity-admin-mcp`) in [`config/seed.yaml`](../../config/seed.yaml). To
+provision it:
+
+1. **Set the secret (seed-as-code, ADR-0006).** Add `IDENTITY_ADMIN_CLIENT_SECRET` to the SOPS file and
+   re-seed:
+
+   ```bash
+   sops config/secrets.ds1.sops.yaml   # add: IDENTITY_ADMIN_CLIENT_SECRET: <a long random string>
+   # then, from service/, the usual seed run (idempotent — upserts the client):
+   SOPS_AGE_KEY='AGE-SECRET-KEY-…' sops exec-env ../config/secrets.ds1.sops.yaml \
+     'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
+   ```
+
+2. **Mint a token** (any caller — the console, `curl`, a test):
+
+   ```bash
+   curl -s -XPOST https://auth.fps4.nl/oauth2/token -d grant_type=client_credentials \
+        -d client_id=identity-admin-mcp -d client_secret=$IDENTITY_ADMIN_CLIENT_SECRET -d scope=admin | jq -r .access_token
+   ```
+
+   Tokens are short-lived (15 min) — mint on demand from the client id+secret rather than storing one.
+
+### Driving the MCP server from an MCP client (e.g. Claude Code)
+
+The MCP server talks to MongoDB directly and verifies the admin token against the service's own JWKS, so
+it runs **inside the `identity-service` container** (which already has Mongo, the key passphrase, and the
+issuer). [`docker/mcp-admin.sh`](../../docker/mcp-admin.sh) mints a fresh token on each start and execs
+`node dist/mcp/server.js` in that container — nothing long-lived is stored:
+
+1. Put the secret on the host (root-readable, gitignored): write
+   `IDENTITY_ADMIN_CLIENT_SECRET=<value>` to `/opt/identity-service/docker/.mcp-admin.env` (`chmod 600`).
+2. A remote MCP client connects over SSH (stdio passes straight through):
+
+   ```bash
+   ssh ds1 /opt/identity-service/docker/mcp-admin.sh
+   ```
+
+   For Claude Code, register it once at user scope so every project sees it:
+
+   ```bash
+   claude mcp add --scope user --transport stdio identity-service-admin -- ssh ds1 /opt/identity-service/docker/mcp-admin.sh
+   ```
+
+   The secret never leaves the ds1 host; the laptop config holds only the SSH command.
 
 ## Verify
 
