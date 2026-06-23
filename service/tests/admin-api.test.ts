@@ -43,6 +43,11 @@ function fakeCollection(items: any[]) {
       items.push({ ...doc });
       return doc;
     },
+    findByIdAndDelete: (id: string) => {
+      const i = items.findIndex((d) => d._id === id);
+      const removed = i >= 0 ? items.splice(i, 1)[0] : null;
+      return exec(removed);
+    },
     findByIdAndUpdate: (id: string, update: any, opts: any = {}) => {
       let doc = items.find((d) => d._id === id);
       const set = update.$set ?? {};
@@ -122,6 +127,15 @@ describe('admin service', () => {
     expect(after).not.toBe(before);
     expect(verifySecret(secret, after)).toBe(true);
     await expect(admin.rotateClientSecret('nope')).rejects.toBeInstanceOf(AdminServiceError);
+  });
+
+  it('deletes a client and 404s on an unknown client', async () => {
+    const admin = makeAdmin(state);
+    const { clientId } = await admin.createClient({ tenantId: 't1', id: 'gone', name: 'tmp', grantTypes: ['password'] });
+    const res = await admin.deleteClient(clientId);
+    expect(res).toEqual({ clientId: 'gone', deleted: true });
+    expect(state.OAuthClient._items.find((c) => c._id === 'gone')).toBeUndefined();
+    await expect(admin.deleteClient('gone')).rejects.toMatchObject({ status: 404, code: 'client_not_found' });
   });
 
   it('rejects creating a client for a missing tenant', async () => {
