@@ -94,8 +94,15 @@ jobs:
           # otherwise collide on `up`. Bring our project down (KEEPING the data volume — no -v), then
           # force-remove any leftover fixed-name containers. Idempotent: on a steady-state redeploy this
           # is just a clean restart; the mongo data volume (identity-service_mongo_data) persists.
+          #
+          # Also clear the PRE-RENAME containers (component-auth / component-auth-mongo). The old
+          # component-auth-mongo binds host port 27019, so while it lingers the new identity-service-mongo
+          # cannot start ("port is already allocated") and every deploy fails. Removing the stale container
+          # frees the port; the new mongo comes up on the fresh identity-service_mongo_data volume (the DB
+          # is then re-seeded from config/seed.yaml — an operator step, RQ-0004). The old
+          # component-auth_mongo_data volume is intentionally left in place as a rollback.
           $COMPOSE down --remove-orphans || true
-          docker rm -f identity-service identity-service-mongo 2>/dev/null || true
+          docker rm -f identity-service identity-service-mongo component-auth component-auth-mongo 2>/dev/null || true
           $COMPOSE up -d --remove-orphans
 
       - name: Wait for health (identity-service, via docker inspect over the socket)
