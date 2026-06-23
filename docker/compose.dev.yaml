@@ -1,5 +1,5 @@
 services:
-  component-auth:
+  identity-service:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug

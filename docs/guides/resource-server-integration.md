@@ -47,7 +47,7 @@ RQ-0005 scope §5.)
 - **JWKS** at `/.well-known/jwks.json` for signature verification.
 - **OAuth2 endpoints** — `/oauth2/token` (local password grant) and authorization-code + PKCE
   (Google SSO).
-- **A login widget** — the `@fps4/component-auth-react` `<Login/>` component.
+- **A login widget** — the `@fps4/identity-service-react` `<Login/>` component.
 - **Operator role provisioning** — `manage-users set-roles` and the seed config (`users[].roles`),
   optionally constrained by a per-tenant `oauth.allowedRoles` vocabulary (see
   [`tenant-config.md`](./tenant-config.md)).
@@ -114,5 +114,5 @@ Don't re-implement JWKS handling per product. The integration surface is:
 sovereign-copilot is a resource server consuming this contract. Its edge verifier is
 `src/chat_api/edgeauth.py` / `require_identity()`; it owns no user store; its role → capability map
 and enforcement (`require_capability`) live in the copilot repo. Its instance of this decision is
-sovereign-copilot ADR-0015 (*component-auth as authentication engine; copilot as resource server*),
+sovereign-copilot ADR-0015 (*identity-service as authentication engine; copilot as resource server*),
 implemented by copilot story US-0109.

@@ -1,4 +1,4 @@
-# Deploy component-auth to the ds1 host after a green Definition of Done on main.
+# Deploy identity-service to the ds1 host after a green Definition of Done on main.
 #
 # Runs on the shared org ds1 runner: a CONTAINERISED GitHub Actions runner with only the host Docker
 # socket mounted. So this job drives the host daemon purely through `docker` / `docker compose` — it
@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  COMPOSE: docker compose -f docker/compose.yaml -f docker/compose.prod.yaml -p component-auth --env-file config/ds1/.env
+  COMPOSE: docker compose -f docker/compose.yaml -f docker/compose.prod.yaml -p identity-service --env-file config/ds1/.env
 
 jobs:
   deploy:
@@ -87,23 +87,23 @@ jobs:
           # leftover container from the manual-SSH era (created under a different compose project) would
           # otherwise collide on `up`. Bring our project down (KEEPING the data volume — no -v), then
           # force-remove any leftover fixed-name containers. Idempotent: on a steady-state redeploy this
-          # is just a clean restart; the mongo data volume (component-auth_mongo_data) persists.
+          # is just a clean restart; the mongo data volume (identity-service_mongo_data) persists.
           $COMPOSE down --remove-orphans || true
-          docker rm -f component-auth component-auth-mongo 2>/dev/null || true
+          docker rm -f identity-service identity-service-mongo 2>/dev/null || true
           $COMPOSE up -d --remove-orphans
 
-      - name: Wait for health (component-auth, via docker inspect over the socket)
+      - name: Wait for health (identity-service, via docker inspect over the socket)
         run: |
           ok=0
           for i in $(seq 1 60); do            # up to ~5 min
-            s=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' component-auth 2>/dev/null || echo missing)
-            echo "component-auth: $s"
+            s=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' identity-service 2>/dev/null || echo missing)
+            echo "identity-service: $s"
             [ "$s" = "healthy" ] && { ok=1; break; }
-            [ "$s" = "missing" ] && { echo "::error::component-auth container not found"; break; }
+            [ "$s" = "missing" ] && { echo "::error::identity-service container not found"; break; }
             sleep 5
           done
-          docker logs --tail 20 component-auth 2>&1 | tail -20 || true
-          [ "$ok" = 1 ] || { echo "::error::component-auth did not become healthy"; exit 1; }
+          docker logs --tail 20 identity-service 2>&1 | tail -20 || true
+          [ "$ok" = 1 ] || { echo "::error::identity-service did not become healthy"; exit 1; }
 
       - name: Verify product_runtime clients are seeded (service authorization)
         # A managed-product runtime authorizes to maestro with a client_credentials JWT minted from a
@@ -115,10 +115,10 @@ jobs:
         # Mongo, and fail loudly (with the seed command) on drift. Read-only; runs over the same Docker socket.
         run: |
           DB=$(grep -E '^MONGO_DB_NAME=' config/ds1/.env.base | cut -d= -f2)
-          DB=${DB:-component-auth}
+          DB=${DB:-identity-service}
           expected=$(grep -cE '^[[:space:]]*role:[[:space:]]*product_runtime[[:space:]]*$' config/seed.yaml || true)
           echo "config/seed.yaml declares ${expected:-0} product_runtime client(s)"
-          actual=$(docker exec component-auth-mongo mongosh "$DB" --quiet \
+          actual=$(docker exec identity-service-mongo mongosh "$DB" --quiet \
             --eval 'db.oauth_clients.countDocuments({"claims.role":"product_runtime"})' 2>/dev/null | tr -dc '0-9')
           echo "ds1 auth DB ($DB) has ${actual:-0} product_runtime client(s)"
           if [ "${actual:-0}" -lt "${expected:-0}" ]; then

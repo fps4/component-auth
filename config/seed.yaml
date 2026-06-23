@@ -6,7 +6,7 @@
 #
 #     SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
 #     sops exec-env ../config/secrets.ds1.sops.yaml \
-#       'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth npm run seed'
+#       'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
 #
 # Idempotent: tenants + clients are upserted on every run; existing users are left untouched
 # (insert-if-absent), so a re-run never resets a password. Use `npm run manage-users -- set-password …`
@@ -36,7 +36,7 @@ tenants:
         password: ${SEED_DEMO_PASSWORD}  # set SEED_DEMO_PASSWORD in the environment / .env
         status: active
       - email: admin@fps4.nl
-        password: ${SEED_ADMIN_PASSWORD} # "admin" is just a labelled user — component-auth has no role concept
+        password: ${SEED_ADMIN_PASSWORD} # "admin" is just a labelled user — identity-service has no role concept
         status: active
 
   - id: sovereign-copilot
@@ -112,7 +112,7 @@ tenants:
         claims:
           role: product_runtime
           email: runtime@sovereign-copilot.fps4.nl
-      # component-auth's own runtime: it reports its fleet health/telemetry to maestro under the
+      # identity-service's own runtime: it reports its fleet health/telemetry to maestro under the
       # "components" (Shared Components) product, whose ds1 deployment maestro's register keys to this
       # identity (runtime@components.fps4.nl). Self-minted via this service's own token endpoint.
       - id: components-ds1
@@ -154,7 +154,7 @@ tenants:
       - id: coach-web
         name: Sovereign Skills Coach Web
         grantTypes: [password]
-        audience: coach-workspace     # becomes the token `aud` (matches the coach API's COMPONENT_AUTH_AUDIENCE)
+        audience: coach-workspace     # becomes the token `aud` (matches the coach API's IDENTITY_SERVICE_AUDIENCE)
         redirectUris: []
         isConfidential: false
     users:

@@ -10,7 +10,7 @@ related:
 
 # Deployment
 
-How component-auth is deployed. The service is a **stateless container** driven entirely by environment
+How identity-service is deployed. The service is a **stateless container** driven entirely by environment
 variables, with **MongoDB** as its only persistent dependency. It can run anywhere Docker runs; the
 default pattern is a **manual deploy over SSH to a Docker host**.
 
@@ -92,7 +92,7 @@ a new tenant/client, or after a loss.
 ```bash
 SOPS_AGE_KEY='AGE-SECRET-KEY-…' \
 sops exec-env ../config/secrets.ds1.sops.yaml \
-  'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=component-auth npm run seed'
+  'MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed'
 ```
 
 Idempotent: tenants/clients are upserted; **existing users are left untouched** — change a password with
@@ -102,6 +102,32 @@ scrypt hashes; plaintext lives only inside the encrypted file and with the human
 **Edit / rotate a secret:** `sops config/secrets.ds1.sops.yaml` (opens the decrypted values in `$EDITOR`,
 re-encrypts on save), then re-seed. A runtime client secret must stay equal to its consumer-repo mirror
 (`MAESTRO_RUNTIME_CLIENT_SECRET` in the gateway / copilot repos, US-0086).
+
+## Rename cutover: component-auth → identity-service (one-time) — ADR-0007
+
+The rename changes the compose **project** name (so the data volume moves from `component-auth_mongo_data`
+to `identity-service_mongo_data`) **and** `MONGO_DB_NAME` (`component-auth` → `identity-service`). Together
+those would orphan the live ds1 data on the first new-name deploy. `docker/migrate-rename-ds1.sh` does a
+logical dump→restore with a namespace remap, covering **both** the volume move and the DB rename in one
+pass; the old volume is kept as a rollback until you remove it. Run it **on the ds1 host**:
+
+```bash
+# 1. With the OLD stack still running, dump the old DB:
+docker/migrate-rename-ds1.sh dump
+# 2. Deploy the NEW stack (CI deploy-ds1.yml on main, or manual compose up) — brings up identity-service-mongo.
+# 3. Restore into the new mongo with the ns remap, then verify counts:
+docker/migrate-rename-ds1.sh restore
+docker/migrate-rename-ds1.sh verify
+# 4. After verifying /health + a token issuance, drop the old rollback volume:
+docker/migrate-rename-ds1.sh decommission
+```
+
+**Note on the public issuer:** `AUTH_JWT_ISSUER` stays `https://auth.fps4.nl` (a URL, unchanged by the
+rename), so consumer verifiers (maestro) are **unaffected** — no `iss` migration is needed. The renamed
+default `identity-service` is only the dev/test fallback. **Consumer-side breaking changes** that *do*
+need coordination: the published SDK package name (`@fps4/component-auth` → `@fps4/identity-service-sdk`)
+and the documented consumer env-var convention (`COMPONENT_AUTH_*` → `IDENTITY_SERVICE_*`, which is each
+consumer's own choice of name).
 
 ## Verify
 

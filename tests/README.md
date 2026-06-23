@@ -17,7 +17,7 @@ This folder contains lightweight assets to validate a deployed Component Auth en
    npm install  # ensure dependencies like mongoose are available
    npx tsx ../tests/load-tenant.ts \
      --mongoUri="mongodb://mongo:27017" \
-     --dbName="component-auth" \
+     --dbName="identity-service" \
      --tenantFile="../tests/new-tenant.json" \
      --clientName="Manual Harness Client" \
      --clientScopes="telemetry:read,telemetry:write" \

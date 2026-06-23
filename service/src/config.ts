@@ -18,13 +18,13 @@ export const CONFIG = {
   port: Number(process.env.PORT ?? 7305),
   mongo: {
     uri: process.env.MONGO_URI ?? 'mongodb://localhost:27017',
-    dbName: process.env.MONGO_DB_NAME ?? 'component-auth'
+    dbName: process.env.MONGO_DB_NAME ?? 'identity-service'
   },
   auth: {
     sessionTtlMinutes: toNumber(process.env.SESSION_TTL_MINUTES, 15),
     jwtSecret: process.env.AUTH_JWT_SECRET ?? '',
-    jwtIssuer: process.env.AUTH_JWT_ISSUER ?? 'component-auth-service',
-    jwtAudience: process.env.AUTH_JWT_AUDIENCE ?? 'component-auth-clients',
+    jwtIssuer: process.env.AUTH_JWT_ISSUER ?? 'identity-service',
+    jwtAudience: process.env.AUTH_JWT_AUDIENCE ?? 'identity-service-clients',
     // Local-credential IdP (RQ-0002): password policy + brute-force lockout.
     password: {
       minLength: toNumber(process.env.AUTH_PASSWORD_MIN_LENGTH, 10),

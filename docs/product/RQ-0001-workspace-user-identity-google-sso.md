@@ -23,16 +23,16 @@ maestro:
 - **Status:** proposed
 - **Raised:** 2026-06-01
 - **Owner:** @farid (architect)
-- **Origin:** carve-out from a consumer's authenticated-edge work — the consumer side (the verifying edge) shipped first; this is the issuer side component-auth must provide.
+- **Origin:** carve-out from a consumer's authenticated-edge work — the consumer side (the verifying edge) shipped first; this is the issuer side identity-service must provide.
 - **Consumer:** the **maestro workspace** (a resource server that already verifies tokens this requirement issues).
 
-> **For the implementing agent:** this is a self-contained functional requirement. Read it, then the *current state* and *fixed contract* sections before changing anything — the consumer is **already in production-shaped code**, so the token contract below is a constraint you must meet, not a design space. Work on a `component-auth/*` branch, open a PR, keep CI green; do not change the existing client-credentials grant.
+> **For the implementing agent:** this is a self-contained functional requirement. Read it, then the *current state* and *fixed contract* sections before changing anything — the consumer is **already in production-shaped code**, so the token contract below is a constraint you must meet, not a design space. Work on a `identity-service/*` branch, open a PR, keep CI green; do not change the existing client-credentials grant.
 
 ## Why
 
-`component-auth` today issues **machine** tokens only: `POST /oauth2/token` (client-credentials), carrying `tid` / `cid` / `sid` / scope claims (`docs/reference/api.md`, `service/src/oauth/server.ts`). maestro needs **human** identity: a participant authenticates with **Google SSO**, and component-auth issues a **user** JWT carrying a stable identity (`email` + `sub`) that maestro verifies at its edge. Without it, maestro can only run its off-production loopback dev path — there is no real authenticated edge for a human in production.
+`identity-service` today issues **machine** tokens only: `POST /oauth2/token` (client-credentials), carrying `tid` / `cid` / `sid` / scope claims (`docs/reference/api.md`, `service/src/oauth/server.ts`). maestro needs **human** identity: a participant authenticates with **Google SSO**, and identity-service issues a **user** JWT carrying a stable identity (`email` + `sub`) that maestro verifies at its edge. Without it, maestro can only run its off-production loopback dev path — there is no real authenticated edge for a human in production.
 
-maestro deliberately keeps **authorization** (who may do what) in its own register; component-auth owns **authentication** (who you are) only. So this requirement is about *issuing a trustworthy identity token*, nothing about the consumer's roles.
+maestro deliberately keeps **authorization** (who may do what) in its own register; identity-service owns **authentication** (who you are) only. So this requirement is about *issuing a trustworthy identity token*, nothing about the consumer's roles.
 
 ## Current state (what already exists — reuse it)
 
@@ -51,18 +51,18 @@ maestro's verifier (shipped) does exactly this, so the issued token MUST conform
 - Claims maestro reads / enforces:
   - **`email`** — the workspace identity (primary). REQUIRED for a human token (maestro keys attribution on it).
   - **`sub`** — the **stable, immutable** subject (the Google `sub`). REQUIRED; maestro uses it as the secondary key if email ever changes ("store both, match on either").
-  - **`iss`** — MUST equal maestro's configured `COMPONENT_AUTH_ISSUER`.
-  - **`aud`** — MUST equal maestro's configured `COMPONENT_AUTH_AUDIENCE` (the maestro workspace; tenant/client-scoped).
+  - **`iss`** — MUST equal maestro's configured `IDENTITY_SERVICE_ISSUER`.
+  - **`aud`** — MUST equal maestro's configured `IDENTITY_SERVICE_AUDIENCE` (the maestro workspace; tenant/client-scoped).
   - **`exp`** — REQUIRED and enforced (maestro rejects a token without it); `iat` expected. A 60s leeway is allowed on the consumer.
 - A token failing any of the above is rejected by maestro as unauthenticated (401) — there is no fallback. So issuance correctness is load-bearing.
 
 ## Scope
 
-1. A **user authentication flow** with **Google** as the upstream IdP — OIDC **Authorization Code + PKCE** (browser-initiated; redirect-based), terminating at component-auth, which validates Google's id_token and establishes the user's identity.
+1. A **user authentication flow** with **Google** as the upstream IdP — OIDC **Authorization Code + PKCE** (browser-initiated; redirect-based), terminating at identity-service, which validates Google's id_token and establishes the user's identity.
 2. **Issue a user JWT** carrying `email` + `sub` + `iss` + `aud` + `exp`/`iat`, signed with the active RSA key (reuse the key manager + JWKS).
 3. An **SDK login helper** (`sdk/`) so a consumer frontend (maestro's web app) can drive the redirect login and obtain the token to forward as `Authorization: Bearer`.
 4. **Session lifetime + refresh** for the user token (the open question the consumer deferred to "the auth slice" — decide it here).
-5. **Audience binding** — the token's `aud` is the consuming workspace, configured per tenant/client (so maestro's `COMPONENT_AUTH_AUDIENCE` has a real counterpart).
+5. **Audience binding** — the token's `aud` is the consuming workspace, configured per tenant/client (so maestro's `IDENTITY_SERVICE_AUDIENCE` has a real counterpart).
 
 ## Out of scope
 
@@ -88,7 +88,7 @@ maestro's verifier (shipped) does exactly this, so the issued token MUST conform
 - **Add the flow under** `service/src/oauth/` (the architecture doc names `service/src/oauth/server.ts` as the extension point for new grants) + a route under `service/src/routes/oauth-routes.ts` (e.g. `/oauth2/authorize`, `/oauth2/callback`, `/oauth2/token` with `grant_type=authorization_code`).
 - **Reuse** `service/src/core/jwt.ts` + `service/src/utils/key-store.ts` for signing and JWKS — do **not** introduce a second signing path.
 - **Claims:** extend the user-token claim builder to set `email` + `sub`; keep machine tokens' `tid`/`cid`/`sid` builder separate.
-- **Tenant config:** model the consumer (maestro) as a tenant OAuth client with Google IdP settings + redirect URI(s) + the `aud` value (`docs/guides/tenant-config.md`). Document the resulting `iss`/`aud`/JWKS-URL so maestro's `COMPONENT_AUTH_ISSUER` / `COMPONENT_AUTH_AUDIENCE` / `COMPONENT_AUTH_JWKS_URL` can be set to match.
+- **Tenant config:** model the consumer (maestro) as a tenant OAuth client with Google IdP settings + redirect URI(s) + the `aud` value (`docs/guides/tenant-config.md`). Document the resulting `iss`/`aud`/JWKS-URL so maestro's `IDENTITY_SERVICE_ISSUER` / `IDENTITY_SERVICE_AUDIENCE` / `IDENTITY_SERVICE_JWKS_URL` can be set to match.
 - **SDK:** add the login helper to `sdk/src/index.ts` alongside `requestClientCredentialsToken`.
 - **Tests:** prove the token verifies under the **same** checks maestro runs — signature via JWKS, `iss`/`aud`/`exp` enforced, `email` + `sub` present; and the negative paths (bad state, unregistered redirect, expired Google id_token).
 
@@ -98,4 +98,4 @@ maestro's verifier (shipped) does exactly this, so the issued token MUST conform
 - The SDK login helper drives the flow end to end and hands back the token.
 - Token/session lifetime + refresh documented; revocation honoured.
 - `docs/reference/api.md` documents the new endpoints; `docs/guides/tenant-config.md` documents the consumer/Google config; the existing client-credentials grant and JWKS are unchanged.
-- The maestro values to set (`COMPONENT_AUTH_ISSUER` / `AUDIENCE` / `JWKS_URL`) are written down so the two sides line up.
+- The maestro values to set (`IDENTITY_SERVICE_ISSUER` / `AUDIENCE` / `JWKS_URL`) are written down so the two sides line up.

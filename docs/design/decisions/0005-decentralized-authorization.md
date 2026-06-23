@@ -11,7 +11,7 @@ related:
 
 ## Context
 
-component-auth mints a user identity token (`sub`, `email`, `iss`, `aud`, `exp`) that products verify
+identity-service mints a user identity token (`sub`, `email`, `iss`, `aud`, `exp`) that products verify
 via JWKS. It has **no role/permission concept**. Consumers now need to authorize users:
 
 - **maestro** already owns a rich, domain-specific authorization model — a private participant
@@ -19,20 +19,20 @@ via JWKS. It has **no role/permission concept**. Consumers now need to authorize
   the token, and resolves permissions itself.
 - **Other consumers** have little or no per-user authorization today.
 
-The question: where should RBAC live? Two poles — a **central Policy Decision Point** (component-auth
-owns roles *and* permissions for every product) versus **decentralized** (component-auth asserts
+The question: where should RBAC live? Two poles — a **central Policy Decision Point** (identity-service
+owns roles *and* permissions for every product) versus **decentralized** (identity-service asserts
 identity + coarse roles; each product decides what a role may do).
 
 ## Decision
 
-**component-auth is the identity authority and a Policy Information Point — not a central Policy
+**identity-service is the identity authority and a Policy Information Point — not a central Policy
 Decision Point. It carries coarse, tenant-scoped roles as a token claim; each product owns the
 fine-grained mapping of roles to permissions.**
 
 - **In the token:** a `roles` claim (array of opaque, coarse, slow-changing strings — e.g.
   `tenant_admin`, `member`), scoped to the user's tenant. Roles are provisioned by the operator (seed
   config + `manage-users`), optionally validated against a per-tenant `oauth.allowedRoles` allow-list.
-- **component-auth does NOT enforce** role semantics. It never rejects authentication on roles; it
+- **identity-service does NOT enforce** role semantics. It never rejects authentication on roles; it
   asserts them and stops there.
 - **Each product is the Policy Enforcement/Decision Point.** It treats `roles` (plus `sub`/`email`) as
   *input* to its own authorization, mapping coarse roles to its domain permissions in its own repo.
@@ -42,10 +42,10 @@ fine-grained mapping of roles to permissions.**
 ## Why not a central permission engine
 
 - **maestro's authorization is domain logic** (gate governance, split-review, self-dealing
-  prevention). Centralizing it would couple component-auth to maestro's delivery-engine semantics, and
+  prevention). Centralizing it would couple identity-service to maestro's delivery-engine semantics, and
   maestro already keeps its instance data private.
 - A central PDP becomes a **bottleneck and a single point of failure**: every new product permission
-  would require a component-auth change, redeploy, and token refresh. The claims-in-token model needs
+  would require a identity-service change, redeploy, and token refresh. The claims-in-token model needs
   no per-request call to auth.
 - It matches the **grain of the system**: identity is shared and security-sensitive (must be central,
   versioned, JWKS-rotated, audited); policy is per-product and fast-moving.
@@ -68,7 +68,7 @@ This change is **additive and non-breaking**, so deploying it does not disturb e
   Mongo needs no migration and existing documents stay valid.
 - **Keys persist.** Signing keys live in Mongo (`KeyStore`, encrypted), loaded on boot and only created
   when absent — a redeploy reuses them, so JWKS is stable and already-issued tokens remain valid.
-- **Non-enforcing.** component-auth never rejects a login on roles; a user with no roles behaves
+- **Non-enforcing.** identity-service never rejects a login on roles; a user with no roles behaves
   exactly as today.
 - **Ships dark.** Until roles are assigned, every token is identical to today's. Rollout is reversible.
 
@@ -77,7 +77,7 @@ product repo, not a side effect of deploying here.
 
 ## Consequences
 
-- **Clear ownership boundary:** component-auth answers *"who is this person and what tenant-roles do
+- **Clear ownership boundary:** identity-service answers *"who is this person and what tenant-roles do
   they hold."* Each product answers *"given this person, what may they do here."*
 - **Products do real work:** maestro keeps (and remains the source of truth for) its participant/gate
   model; it may additionally consume `roles` for cross-product org-roles. A consumer with no

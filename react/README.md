@@ -1,22 +1,22 @@
-# @fps4/component-auth-react
+# @fps4/identity-service-react
 
-Optional React UI for [component-auth](../README.md) — a drop-in `<Login/>` for consumer apps
+Optional React UI for [identity-service](../README.md) — a drop-in `<Login/>` for consumer apps
 (RQ-0003 / [ADR-0002](../docs/design/decisions/0002-optional-react-ui-package.md)).
 
-This package is **separate from the headless `@fps4/component-auth` SDK** on purpose: server-side
+This package is **separate from the headless `@fps4/identity-service-sdk` SDK** on purpose: server-side
 consumers (e.g. the client-credentials grant) never pull in React. It depends only on React (peer);
-it talks to component-auth's HTTP API directly.
+it talks to identity-service's HTTP API directly.
 
 ## Install
 
 ```bash
-npm install @fps4/component-auth-react react
+npm install @fps4/identity-service-react react
 ```
 
 ## Usage
 
 ```tsx
-import { Login } from '@fps4/component-auth-react';
+import { Login } from '@fps4/identity-service-react';
 
 export function LoginPage() {
   return (

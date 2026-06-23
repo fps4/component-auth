@@ -1,7 +1,7 @@
 // Wires the maestro managed-product SDK into this service: a self-minted runtime token + a periodic
 // emit loop that ships the heartbeat (US-0070) and golden-signal telemetry (US-0076) rollup.
 //
-// component-auth is itself the IdP, so the runtime JWT is obtained by a `client_credentials` exchange
+// identity-service is itself the IdP, so the runtime JWT is obtained by a `client_credentials` exchange
 // against this service's OWN token endpoint (loopback) — no external bootstrap. The principal
 // (`components-ds1`, aud=maestro-workspace, role=product_runtime, email=runtime@components.fps4.nl) is
 // seeded from config/seed.yaml; maestro resolves that identity to the `components/ds1` deployment.

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to `component-auth`. This repo is three independent
+Thanks for your interest in contributing to `identity-service`. This repo is three independent
 packages — `service/` (the API), `sdk/` (the headless client), and `react/` (the optional UI) — each
 with its own `package.json`, built and tested on its own. There is no root build.
 

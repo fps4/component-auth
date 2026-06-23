@@ -11,7 +11,7 @@ export interface OAuthClientDocument extends Document {
   scopes: string[];
   isConfidential: boolean;
   // The `aud` value stamped on tokens minted for this consumer (RQ-0001). Binds a token to one
-  // workspace — maestro's COMPONENT_AUTH_AUDIENCE must equal this. Now honoured by the
+  // workspace — maestro's IDENTITY_SERVICE_AUDIENCE must equal this. Now honoured by the
   // client-credentials grant too (US-0086), so a machine principal can be audience-bound to a workspace
   // (e.g. `maestro-workspace`) rather than the service-wide default.
   audience?: string;

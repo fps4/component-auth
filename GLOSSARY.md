@@ -1,6 +1,6 @@
 # Glossary
 
-Terms where component-auth's business language and code diverge, or that a consumer must get right.
+Terms where identity-service's business language and code diverge, or that a consumer must get right.
 
 - **Tenant** — a product/organization registered in the `tenants` collection. Opts into OAuth via an
   `oauth` block (`enabled`, `allowedGrantTypes`, `allowedScopes`, `limits`, `idp`). Authentication is
@@ -20,12 +20,12 @@ Terms where component-auth's business language and code diverge, or that a consu
 - **Role** — a coarse, tenant-scoped string (e.g. `tenant_admin`, `member`) carried on a local user
   and stamped into the user token's `roles` claim (RQ-0005). Provisioned by the operator (seed config
   `users[].roles` / `manage-users set-roles`), optionally constrained by a tenant's `oauth.allowedRoles`
-  vocabulary. component-auth **asserts** roles but does not enforce them — each product maps roles to
+  vocabulary. identity-service **asserts** roles but does not enforce them — each product maps roles to
   its own permissions ([ADR-0005](docs/design/decisions/0005-decentralized-authorization.md)). Contrast
   **scope** (machine/client authorization); roles describe the *user*.
 
 - **IdP (identity provider)** — how a user authenticates. `google` federates Google SSO (RQ-0001);
-  `local` is component-auth's own email/password store (RQ-0002). A per-tenant choice (`oauth.idp`);
+  `local` is identity-service's own email/password store (RQ-0002). A per-tenant choice (`oauth.idp`);
   both issue the same user token.
 
 - **Local user** — an email/password account in the `users` collection (RQ-0002). Per-tenant unique

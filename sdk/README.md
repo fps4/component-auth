@@ -15,7 +15,7 @@ Publish or link the generated package as needed. Consumers require a `fetch` imp
 ## Usage
 
 ```ts
-import { ComponentAuthClient } from '@fps4/component-auth';
+import { ComponentAuthClient } from '@fps4/identity-service-sdk';
 
 const auth = new ComponentAuthClient({
   baseUrl: process.env.CORE_AUTH_URL!,

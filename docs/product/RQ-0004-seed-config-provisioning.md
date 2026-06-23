@@ -29,7 +29,7 @@ maestro:
 
 Provisioning was a one-off single-tenant script (`tests/load-tenant.ts`). Deployments now need several
 tenants plus demo/admin users (e.g. a demo deployment) from a repeatable, reviewable source — without an
-admin HTTP API (which component-auth has no auth layer for, [ADR-0001](../design/decisions/0001-local-credential-idp.md)).
+admin HTTP API (which identity-service has no auth layer for, [ADR-0001](../design/decisions/0001-local-credential-idp.md)).
 
 ## Scope
 

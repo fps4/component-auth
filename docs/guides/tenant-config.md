@@ -158,20 +158,20 @@ db.oauth_clients.insertOne({
 ### Values to give the consumer
 
 The consumer's JWT verifier must be configured to match what this service mints. maestro, for example,
-sets these (`COMPONENT_AUTH_*`) — a consuming product picks its own variable names:
+sets these (`IDENTITY_SERVICE_*`) — a consuming product picks its own variable names:
 
 | consumer env var | Value | Source |
 | --- | --- | --- |
-| `COMPONENT_AUTH_JWKS_URL` | `https://auth-dev.example.com/.well-known/jwks.json` | this service's JWKS endpoint |
-| `COMPONENT_AUTH_ISSUER` | `https://auth-dev.example.com` | `AUTH_JWT_ISSUER` above |
-| `COMPONENT_AUTH_AUDIENCE` | `maestro-workspace` | the client's `audience` field |
+| `IDENTITY_SERVICE_JWKS_URL` | `https://auth-dev.example.com/.well-known/jwks.json` | this service's JWKS endpoint |
+| `IDENTITY_SERVICE_ISSUER` | `https://auth-dev.example.com` | `AUTH_JWT_ISSUER` above |
+| `IDENTITY_SERVICE_AUDIENCE` | `maestro-workspace` | the client's `audience` field |
 
 If `iss` / `aud` / the JWKS URL do not line up exactly, maestro rejects the token as unauthenticated
 (401) — there is no fallback.
 
 ## Local username/password login (RQ-0002)
 
-For tenants that want component-auth's own email + password IdP instead of (or alongside) Google,
+For tenants that want identity-service's own email + password IdP instead of (or alongside) Google,
 enable the `password` grant and mark the `local` IdP:
 
 ```js
@@ -213,7 +213,7 @@ npm run manage-users -- lock|unlock|disable|enable|delete --tenant=tenant-local 
 ## User roles (RQ-0005)
 
 A local user can carry a list of **coarse, tenant-scoped roles** that are stamped into the user
-token's **`roles`** claim (a JSON array of strings). component-auth **asserts** roles but does **not**
+token's **`roles`** claim (a JSON array of strings). identity-service **asserts** roles but does **not**
 enforce them — each consuming product maps roles to its own permissions
 ([ADR-0005](../design/decisions/0005-decentralized-authorization.md)). The claim is omitted when a user has no
 roles, and is re-read on every token issuance (including refresh), so a change applies on next refresh.
@@ -242,7 +242,7 @@ Roles are provisioned by the operator (no HTTP API, [ADR-0003](../design/decisio
   ```
 
 A consumer reads `roles` from the verified token and authorizes accordingly; it never calls back to
-component-auth to check a permission.
+identity-service to check a permission.
 
 ## Bulk provisioning via seed config (RQ-0004)
 

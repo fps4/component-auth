@@ -1,7 +1,7 @@
 {
-  "name": "@fps4/component-auth-react",
+  "name": "@fps4/identity-service-react",
   "version": "0.1.0",
-  "description": "Optional React UI for component-auth — a drop-in <Login/> for consumer apps (RQ-0003). Separate from the headless @fps4/component-auth SDK so server-side consumers never pull in React.",
+  "description": "Optional React UI for identity-service — a drop-in <Login/> for consumer apps (RQ-0003). Separate from the headless @fps4/identity-service-sdk SDK so server-side consumers never pull in React.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

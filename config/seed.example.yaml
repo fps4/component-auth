@@ -34,7 +34,7 @@ tenants:
         status: active
         roles: [member]                  # RQ-0005: coarse roles → token `roles` claim; consumers map to permissions
       - email: admin@fps4.nl
-        password: ${SEED_ADMIN_PASSWORD} # component-auth carries roles but does not enforce them
+        password: ${SEED_ADMIN_PASSWORD} # identity-service carries roles but does not enforce them
         status: active
         roles: [tenant_admin]
         # NOTE: re-running the seed leaves EXISTING users untouched (insert-if-absent), so adding/changing

@@ -1,5 +1,5 @@
 {
-  "name": "@fps4/component-auth",
+  "name": "@fps4/identity-service-sdk",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",

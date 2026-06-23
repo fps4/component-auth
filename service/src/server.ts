@@ -99,7 +99,7 @@ async function bootstrap() {
   let server: Server;
 
   server = app.listen(CONFIG.port, () => {
-    logger.info({ port: CONFIG.port }, 'component-auth service is running');
+    logger.info({ port: CONFIG.port }, 'identity-service is running');
   });
 
   // Start reporting liveness + golden signals to maestro (no-op unless MAESTRO_API_URL is set).
@@ -124,6 +124,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  logger.error({ err: error }, 'failed to start component-auth service');
+  logger.error({ err: error }, 'failed to start identity-service');
   process.exit(1);
 });

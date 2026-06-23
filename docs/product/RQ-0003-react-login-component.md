@@ -28,12 +28,12 @@ maestro:
 ## Why
 
 A consumer needs a login screen and would rather reuse one than hand-roll it.
-component-auth previously shipped only backend + a headless SDK (RQ-0001); this adds an opt-in React
+identity-service previously shipped only backend + a headless SDK (RQ-0001); this adds an opt-in React
 UI so consumers drop in a `<Login/>` instead of each rebuilding the form.
 
 ## Scope
 
-1. A new **separate package** `@fps4/component-auth-react` (React peer dependency only; the headless
+1. A new **separate package** `@fps4/identity-service-react` (React peer dependency only; the headless
    SDK is untouched).
 2. A **`<Login/>` component** — email/password against the local IdP (RQ-0002) — that performs the
    `password` grant and returns the issued token via `onSuccess`.
@@ -51,7 +51,7 @@ UI so consumers drop in a `<Login/>` instead of each rebuilding the form.
 ## Acceptance criteria (EARS)
 
 - THE SYSTEM SHALL provide a React `<Login/>` component in a package separate from the headless SDK, depending on React as a peer dependency only.
-- WHEN a user submits valid credentials, THE `<Login/>` SHALL perform the `password` grant against component-auth and invoke `onSuccess` with the issued token (access + refresh).
+- WHEN a user submits valid credentials, THE `<Login/>` SHALL perform the `password` grant against identity-service and invoke `onSuccess` with the issued token (access + refresh).
 - IF the login is rejected, THEN THE `<Login/>` SHALL surface an error to the user and invoke `onError`, issuing no token.
 - THE `<Login/>` SHALL be usable with no styling, SHALL accept a `className` per element, and SHALL support an `unstyled` mode that omits built-in inline styles.
 - THE SYSTEM SHALL export the underlying `requestPasswordToken` function and a `LoginError` (carrying the HTTP status) for custom UIs.
@@ -59,6 +59,6 @@ UI so consumers drop in a `<Login/>` instead of each rebuilding the form.
 
 ## Definition of done
 
-- `@fps4/component-auth-react` builds and its login function is covered by tests (success + rejection).
-- A consumer can `npm install @fps4/component-auth-react react` and render `<Login/>` against a local-IdP tenant.
+- `@fps4/identity-service-react` builds and its login function is covered by tests (success + rejection).
+- A consumer can `npm install @fps4/identity-service-react react` and render `<Login/>` against a local-IdP tenant.
 - The package README documents usage + styling; ADR-0002 records the design shift; DoD CI builds/tests the package.

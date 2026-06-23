@@ -29,11 +29,11 @@ maestro:
 
 ## Why
 
-component-auth authenticates users and mints an identity token (`sub`, `email`, `iss`, `aud`, `exp`)
+identity-service authenticates users and mints an identity token (`sub`, `email`, `iss`, `aud`, `exp`)
 but carries **no notion of what a user is** — "admin" is only a labelled email. Consumers
 (maestro among them) increasingly need to authorize users, not just identify them. We want a
 **single, central place** to assert coarse organizational roles for a user, delivered in the token
-the products already verify, **without** turning component-auth into a central permission engine.
+the products already verify, **without** turning identity-service into a central permission engine.
 
 ## Scope
 
@@ -51,7 +51,7 @@ the products already verify, **without** turning component-auth into a central p
 ## Out of scope
 
 - **Fine-grained permissions, resource ACLs, or policy evaluation** — these live in the products
-  (see ADR-0005). component-auth carries roles, not permissions.
+  (see ADR-0005). identity-service carries roles, not permissions.
 - A **normalized roles/role-bindings data model** — roles are an array on the user (RBAC-lite); a
   richer model is deferred until there is real demand.
 - **Roles for federated (Google SSO) users** that have no local user record — the `roles` claim is

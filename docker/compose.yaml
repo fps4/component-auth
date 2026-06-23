@@ -2,7 +2,7 @@ services:
   # One-shot: a fresh named volume mounts root-owned, but the mongo image runs as uid 1001 and would
   # fail to write to /bitnami/mongodb. Fix ownership before mongo starts (idempotent, exits 0).
   mongo-init-perms:
-    container_name: component-auth-mongo-init
+    container_name: identity-service-mongo-init
     image: ghcr.io/flakybitnet/mongodb-server:8.0.13-fb1
     user: "0:0"
     # Override the bitnami entrypoint so this is a pure chown, not a mongo boot.
@@ -13,7 +13,7 @@ services:
     restart: "no"
 
   mongo:
-    container_name: component-auth-mongo
+    container_name: identity-service-mongo
     # MongoDB 5.0+ requires AVX; using `mongo:latest` pulls a newer major
     # Ref: https://github.com/flakybitnet/mongodb-oci
     image: ghcr.io/flakybitnet/mongodb-server:8.0.13-fb1
@@ -30,8 +30,8 @@ services:
       # the database actually survives.
       - mongo_data:/bitnami/mongodb
 
-  component-auth:
-    container_name: component-auth
+  identity-service:
+    container_name: identity-service
     build:
       context: ../service
       dockerfile: Dockerfile
@@ -44,10 +44,10 @@ services:
       PORT: ${PORT:-7305}
       NODE_ENV: ${NODE_ENV:-production}
       MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
-      MONGO_DB_NAME: ${MONGO_DB_NAME:-component-auth}
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-identity-service}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-local-dev-secret}
-      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:-component-auth-service}
-      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-component-auth-clients}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:-identity-service}
+      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-identity-service-clients}
       SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-15}
       OAUTH_ACCESS_TOKEN_TTL_SEC: ${OAUTH_ACCESS_TOKEN_TTL_SEC:-900}
       OAUTH_REFRESH_TOKEN_TTL_SEC: ${OAUTH_REFRESH_TOKEN_TTL_SEC:-2592000}

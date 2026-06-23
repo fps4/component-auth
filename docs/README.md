@@ -1,5 +1,5 @@
 ---
-title: component-auth documentation index
+title: identity-service documentation index
 status: current
 last_updated: 2026-06-07
 owners: [architect]
@@ -7,9 +7,9 @@ related:
   - docs/overview.md
 ---
 
-# component-auth docs
+# identity-service docs
 
-Documentation index. component-auth follows the two-plane information architecture of the shared
+Documentation index. identity-service follows the two-plane information architecture of the shared
 documentation standard: a **Docs** plane you read, and a **Delivery** plane you track. Docs feed both
 humans and agents, so a doc's shelf is **derived from its path** — the folder *is* the shelf.
 
@@ -27,7 +27,7 @@ Start at [`overview.md`](./overview.md) — the product landing.
 
 ## Delivery plane — work (you track)
 
-component-auth tracks discrete capabilities as **`RQ-*` requirements** (functional specs) under
+identity-service tracks discrete capabilities as **`RQ-*` requirements** (functional specs) under
 [`product/`](./product), each with EARS acceptance criteria and a paired ADR. There is no separate
 milestone/epic backlog or issue tracker checked into the repo yet — this plane stays light until the
 work warrants it.

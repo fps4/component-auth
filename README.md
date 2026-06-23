@@ -1,18 +1,18 @@
-# component-auth
+# identity-service
 
 Multi-tenant authentication building blocks shared across products. The project ships a standalone service for session management plus a lightweight SDK for consumers.
 
 ## Project Layout
 
 ```
-component-auth/
+identity-service/
  ├── docker/           # Docker Compose base + env-specific overrides
  ├── service/          # REST API + Docker assets
  │    ├── src/         # Express app, core logic, models
  │    ├── Dockerfile   # Container build
  ├── sdk/              # Headless TypeScript client for the API
  │    └── src/
- ├── react/            # Optional React UI: drop-in <Login/> (@fps4/component-auth-react)
+ ├── react/            # Optional React UI: drop-in <Login/> (@fps4/identity-service-react)
  │    └── src/
  ├── docs/             # Two-plane docs: design/ · reference/ · guides/ · product/ (index: docs/README.md)
  └── README.md
@@ -55,7 +55,7 @@ The service listens on `PORT` (default `7305`). Health check at `GET /health`.
 ## SDK Usage
 
 ```ts
-import { ComponentAuthClient } from '@fps4/component-auth';
+import { ComponentAuthClient } from '@fps4/identity-service-sdk';
 
 const client = new ComponentAuthClient({
   baseUrl: 'https://auth.example.com',
@@ -104,12 +104,12 @@ Run `npm install && npm run build` inside `sdk/` to compile distributable assets
 
 ### React login component
 
-For React consumers, `@fps4/component-auth-react` (in `react/`) ships a drop-in `<Login/>` for the
+For React consumers, `@fps4/identity-service-react` (in `react/`) ships a drop-in `<Login/>` for the
 local email/password IdP — so apps don't rebuild the form. It's a **separate, opt-in** package (React
 peer dependency only); the headless SDK stays UI-free.
 
 ```tsx
-import { Login } from '@fps4/component-auth-react';
+import { Login } from '@fps4/identity-service-react';
 
 <Login
   baseUrl="https://auth-dev.example.com"

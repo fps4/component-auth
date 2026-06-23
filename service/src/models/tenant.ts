@@ -11,7 +11,7 @@ export interface TenantOAuthLimits {
 
 export interface TenantIdpConfig {
   // Identity provider(s) this tenant uses for user login. `google` federates Google SSO (RQ-0001,
-  // app secrets in env); `local` is component-auth's own email + password IdP (RQ-0002). Declarative
+  // app secrets in env); `local` is identity-service's own email + password IdP (RQ-0002). Declarative
   // marker — the effective gate is which grant types the tenant allows (authorization_code / password).
   provider: 'google' | 'local';
 }

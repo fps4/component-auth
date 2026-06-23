@@ -79,14 +79,14 @@ The `access_token` is an RS256 JWT carrying **`email`**, the stable Google **`su
 
 When the authenticated user has roles, the token also carries a **`roles`** claim — a JSON array of
 coarse, tenant-scoped role strings (RQ-0005), **omitted** when the user has none. Roles are advisory
-identity assertions: component-auth does **not** enforce them — each consuming product maps roles to
+identity assertions: identity-service does **not** enforce them — each consuming product maps roles to
 its own permissions ([ADR-0005](../design/decisions/0005-decentralized-authorization.md)). The claim is additive
 (a verifier that ignores it is unaffected) and is re-read from the user store on every issuance
 (including `refresh_token`), so a role change applies on the next refresh.
 
 ### `grant_type=password` (local login — RQ-0002)
 
-Email + password login against component-auth's own credential store, for tenants that enable the
+Email + password login against identity-service's own credential store, for tenants that enable the
 **local** IdP. Issues the same user token shape as the Google flow.
 
 - `Content-Type: application/x-www-form-urlencoded`

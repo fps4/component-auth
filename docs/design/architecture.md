@@ -11,13 +11,13 @@ related:
 
 # Architecture
 
-The **component-auth** platform separates authentication responsibilities into a configurable service and lightweight clients so that multiple products can authenticate users and devices in a consistent, tenant-aware way.
+The **identity-service** platform separates authentication responsibilities into a configurable service and lightweight clients so that multiple products can authenticate users and devices in a consistent, tenant-aware way.
 
 ## Components
 
 - **Service (`service/`)** – Node.js + Express API hosting OAuth 2.0 and legacy session endpoints. It validates tenants, persists sessions and token metadata in MongoDB, manages RSA signing keys, and issues JWT access tokens for downstream services.
 - **SDK (`sdk/`)** – Headless TypeScript client wrapping the HTTP surface: the OAuth client-credentials helper, the Google login helpers, and the local register/login helpers. No UI; safe server-side.
-- **React (`react/`)** – Optional, opt-in package (`@fps4/component-auth-react`) shipping a drop-in `<Login/>` for the local IdP. Separate package so server-side consumers never pull in React.
+- **React (`react/`)** – Optional, opt-in package (`@fps4/identity-service-react`) shipping a drop-in `<Login/>` for the local IdP. Separate package so server-side consumers never pull in React.
 - **Docs (`docs/`)** – Architecture, API, and configuration references to help consumers integrate quickly.
 
 ## High-Level Flow
@@ -30,7 +30,7 @@ The **component-auth** platform separates authentication responsibilities into a
 ```mermaid
 flowchart LR
     client["Client / SDK"]
-    subgraph svc["component-auth service"]
+    subgraph svc["identity-service"]
         oauth["OAuth Server"]
         session["Session Core"]
         keys["Key Manager"]

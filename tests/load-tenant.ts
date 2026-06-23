@@ -25,7 +25,7 @@ function parseArgs(): Options {
   }
 
   const mongoUri = args.get('mongoUri') ?? process.env.MONGO_URI ?? 'mongodb://localhost:27017';
-  const dbName = args.get('dbName') ?? process.env.MONGO_DB_NAME ?? 'component-auth';
+  const dbName = args.get('dbName') ?? process.env.MONGO_DB_NAME ?? 'identity-service';
   const tenantFile = args.get('tenantFile') ?? 'tests/new-tenant.json';
   const clientName = args.get('clientName') ?? undefined;
   const clientScopes = args.get('clientScopes')?.split(',').map((value) => value.trim()).filter(Boolean);

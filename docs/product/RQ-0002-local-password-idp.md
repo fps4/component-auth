@@ -31,7 +31,7 @@ maestro:
 
 [RQ-0001](RQ-0001-workspace-user-identity-google-sso.md) issues human identity via Google SSO. Some
 consumers need a login that does not depend on a Google account (local dev, evaluation, users outside
-any Google tenant). This adds component-auth's **own** email/password IdP as a second, opt-in method
+any Google tenant). This adds identity-service's **own** email/password IdP as a second, opt-in method
 that issues the **same** verifiable user token — so consumers integrate once.
 
 ## Scope
@@ -49,7 +49,7 @@ that issues the **same** verifiable user token — so consumers integrate once.
 
 - **Email verification** and **self-service (email-delivered) password reset** — deferred until a mail
   channel exists (ADR-0001).
-- **An admin-authenticated HTTP management API** — management is CLI/DB today; component-auth has no
+- **An admin-authenticated HTTP management API** — management is CLI/DB today; identity-service has no
   request-auth layer yet.
 - **Changing Google SSO, client-credentials, or the issued token contract** — this is additive.
 

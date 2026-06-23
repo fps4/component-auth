@@ -13,7 +13,7 @@ related:
 
 [RQ-0001](../../product/RQ-0001-workspace-user-identity-google-sso.md) added human identity via
 **Google SSO**, and a consumer (maestro) deliberately chose *"don't roll our own auth — delegate
-identity to Google."* But not every consumer of component-auth can or wants to require a Google
+identity to Google."* But not every consumer of identity-service can or wants to require a Google
 account: local development without a Google app, evaluation environments, and consumers whose users
 are outside any Google tenant. The need surfaced concretely as *"do we have a simple username/password
 option?"* while standing up a dev deployment with Google not yet wired.
@@ -23,7 +23,7 @@ The risk is contradicting that stance — re-introducing a bespoke credential bl
 
 ## Decision
 
-**Add a local email/password identity provider as a second, independent IdP in component-auth — not a
+**Add a local email/password identity provider as a second, independent IdP in identity-service — not a
 replacement for Google, and not a change to the issued token contract.**
 
 - A tenant opts in by enabling the `password` grant and marking `oauth.idp.provider: 'local'`. Google
@@ -57,7 +57,7 @@ replacement for Google, and not a change to the issued token contract.**
 - **A second auth method, one token contract.** Consumers integrate once; the IdP is a tenant config
   choice. maestro keeps Google; other consumers can use local credentials with zero verifier changes.
 - **New `users` collection + a password-management surface** (self-service register, operator CLI).
-  component-auth now stores credentials — a new security responsibility (hashing, lockout, rate limit
+  identity-service now stores credentials — a new security responsibility (hashing, lockout, rate limit
   are in place; password reset delivery and email verification are explicitly deferred).
 - **The Google-SSO stance stands.** This does not mandate local auth anywhere; it offers it. The "identity, not
   authorization" boundary is unchanged — local login still only proves *who you are*.

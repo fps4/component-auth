@@ -11,7 +11,7 @@ export interface LoginClassNames {
 }
 
 export interface LoginProps {
-  /** component-auth base URL, e.g. https://auth-dev.example.com */
+  /** identity-service base URL, e.g. https://auth-dev.example.com */
   baseUrl: string;
   /** an OAuth client that allows the `password` grant and has an `audience` */
   clientId: string;
@@ -45,7 +45,7 @@ const baseStyles: Record<string, CSSProperties> = {
 };
 
 /**
- * Drop-in email/password login for component-auth's local IdP (RQ-0003). Renders a small form,
+ * Drop-in email/password login for identity-service's local IdP (RQ-0003). Renders a small form,
  * performs the `password` grant, and hands the issued token back via `onSuccess`. Token storage,
  * route guarding, and "remember me" are intentionally the host app's concern.
  */
@@ -87,9 +87,9 @@ export function Login(props: LoginProps) {
       {title ? <h2>{title}</h2> : null}
 
       <div className={classNames.field} style={style('field')}>
-        <label className={classNames.label} style={style('label')} htmlFor="component-auth-email">{emailLabel}</label>
+        <label className={classNames.label} style={style('label')} htmlFor="identity-service-email">{emailLabel}</label>
         <input
-          id="component-auth-email"
+          id="identity-service-email"
           className={classNames.input}
           style={style('input')}
           type="email"
@@ -101,9 +101,9 @@ export function Login(props: LoginProps) {
       </div>
 
       <div className={classNames.field} style={style('field')}>
-        <label className={classNames.label} style={style('label')} htmlFor="component-auth-password">{passwordLabel}</label>
+        <label className={classNames.label} style={style('label')} htmlFor="identity-service-password">{passwordLabel}</label>
         <input
-          id="component-auth-password"
+          id="identity-service-password"
           className={classNames.input}
           style={style('input')}
           type="password"

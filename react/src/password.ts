@@ -1,4 +1,4 @@
-// The one network call behind <Login/> (RQ-0003): the OAuth `password` grant against component-auth.
+// The one network call behind <Login/> (RQ-0003): the OAuth `password` grant against identity-service.
 // Kept as a standalone, framework-free function so it is unit-testable with a mocked fetch and reusable
 // by custom UIs. Self-contained on purpose — this package depends only on React (peer), nothing else.
 
@@ -12,7 +12,7 @@ export interface UserTokenResponse {
 }
 
 export interface PasswordLoginRequest {
-  /** component-auth base URL, e.g. https://auth-dev.example.com */
+  /** identity-service base URL, e.g. https://auth-dev.example.com */
   baseUrl: string;
   /** an OAuth client that allows the `password` grant and has an `audience` */
   clientId: string;

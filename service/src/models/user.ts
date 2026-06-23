@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import mongoose, { Connection, Document, Model } from 'mongoose';
 
 /**
- * A local-credential user (RQ-0002) — component-auth's own email + password IdP, an alternative to
+ * A local-credential user (RQ-0002) — identity-service's own email + password IdP, an alternative to
  * Google SSO for tenants that opt into `idp.provider: 'local'`. Authentication issues the same RS256
  * user token (email + stable `sub`) that the Google flow does.
  *

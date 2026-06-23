@@ -15,7 +15,7 @@ related:
 a `config/seed.yaml` loaded by `npm run seed`. That file was **gitignored** and lived only on an
 operator's workstation; its secret *values* lived only in a gitignored `docker/.env`.
 
-This bit us. component-auth's auth state (tenants, clients, users) lives in MongoDB, and on ds1 that
+This bit us. identity-service's auth state (tenants, clients, users) lives in MongoDB, and on ds1 that
 data was being **lost on every deploy** — the records are only scrypt **hashes** (unrecoverable), and
 the *definition* of who should exist lived only on a laptop. There was **no durable, off-host source of
 truth** from which to rebuild.

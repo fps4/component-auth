@@ -12,7 +12,7 @@ related:
 # Product-runtime credential (`client_credentials`)
 
 A **managed product's runtime** authenticates to maestro's runtime-intake endpoints (heartbeat,
-telemetry, RCA) as a `product_runtime` principal. It obtains that credential from component-auth's
+telemetry, RCA) as a `product_runtime` principal. It obtains that credential from identity-service's
 existing OAuth2 `client_credentials` grant — one registered client per deployment — so a deployment
 configures a `client_id` + `client_secret` and exchanges them for a short-lived, signed JWT that
 maestro verifies against this service's JWKS (maestro US-0086).
@@ -59,7 +59,7 @@ tenants:
         grantTypes: [client_credentials]
         isConfidential: true
         secret: ${GATEWAY_DS1_RUNTIME_SECRET}  # operator-held; resolved from the environment
-        audience: maestro-workspace            # must equal maestro's COMPONENT_AUTH_AUDIENCE
+        audience: maestro-workspace            # must equal maestro's IDENTITY_SERVICE_AUDIENCE
         subject: runtime@sovereign-llm-gateway.fps4.nl
         claims:
           role: product_runtime

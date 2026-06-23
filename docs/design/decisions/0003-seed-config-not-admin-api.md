@@ -16,7 +16,7 @@ users (e.g. a demo deployment), the one-off script doesn't scale and there's no 
 source of "what exists." The question raised: a config file of tenants + users, loaded by something,
 expandable later — and whether to trigger that load **behind an HTTP API guarded by a secret**.
 
-[ADR-0001](0001-local-credential-idp.md) already noted component-auth has **no admin-auth layer** and
+[ADR-0001](0001-local-credential-idp.md) already noted identity-service has **no admin-auth layer** and
 deferred an admin HTTP management API. So the live choice is: how to load provisioning data, and
 whether to expose it on the wire.
 
