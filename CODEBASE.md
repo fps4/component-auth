@@ -24,17 +24,19 @@ It issues two kinds of JWT, both RS256-signed and verifiable via a published JWK
 |------|---------|
 | `service/` | The Express API + Docker assets. Stateless container; MongoDB is the only persistent dependency. |
 | `service/src/oauth/` | OAuth server core: `server.ts` (grant logic — extension point for new grants), `google.ts` (upstream Google OIDC adapter), `pkce.ts`, `errors.ts`, `types.ts`. |
-| `service/src/routes/` | HTTP surface: `oauth-routes.ts` (`/oauth2/*`), `session-routes.ts` (legacy `/v1/*`). |
-| `service/src/core/` | JWT signing helpers and the session authorizer. |
-| `service/src/models/` | Mongoose models: tenant, oauth-client, oauth-token, oauth-authorization, user, session, key-store. |
-| `service/src/services/` | `users.ts` — local-credential registration + tenant/policy validation (RQ-0002). |
+| `service/src/routes/` | HTTP surface: `oauth-routes.ts` (`/oauth2/*`), `session-routes.ts` (legacy `/v1/*`), `admin-routes.ts` (`/admin/v1/*` management plane — ADR-0007). |
+| `service/src/mcp/` | `server.ts` — MCP management server (stdio JSON-RPC, `npm run mcp`) exposing the admin operations as agent tools, over the same service layer + admin-auth + audit (ADR-0007). |
+| `service/src/core/` | JWT signing helpers, the session authorizer, and `admin-auth.ts` (verifies admin client-credentials tokens + scopes — ADR-0007). |
+| `service/src/models/` | Mongoose models: tenant, oauth-client, oauth-token, oauth-authorization, user, session, key-store, audit-log (ADR-0007). |
+| `service/src/services/` | `users.ts` — local-credential registration (RQ-0002); `admin.ts` — management operations for tenants/clients/users/keys + stats (ADR-0007). |
 | `service/scripts/` | Operator CLIs: `manage-users.ts` (create/reset/lock/unlock/disable users) and `seed.ts` (idempotent `npm run seed` loader — RQ-0004). |
 | `config/` | `seed.example.yaml` (committed template) → `config/seed.yaml` (gitignored): tenants + clients + users for seed provisioning. |
 | `service/src/utils/` | Key store (RSA generate/rotate + JWKS), db, hashing, CORS, logging. |
 | `service/tests/` | Vitest suites (dependency-injected, no network/DB). |
 | `sdk/` | Headless TypeScript client: `requestClientCredentialsToken` + the Google login helpers (`beginGoogleLogin` / `completeGoogleLogin` / `refreshUserToken` / `revokeUserToken`) + `registerWithPassword` / `loginWithPassword`. No UI; safe server-side. |
 | `react/` | **Optional** React UI package `@fps4/identity-service-react` — a drop-in `<Login/>` (password) for consumer apps (RQ-0003 / ADR-0002). Separate package so server-side consumers never pull in React. |
-| `docker/` | Compose base + dev/prod overlays. Deploys are manual over SSH to a Docker host (see `docs/guides/deployment.md`). |
+| `console/` | **Operator** admin console (Next.js, `@fps4/identity-service-console` — ADR-0007). Thin server-side client over `/admin/v1`: dashboards + tenant/client/user management. Distinct from the consumer `<Login/>` widget. |
+| `docker/` | Compose base + dev/prod overlays; `backup.sh` (nightly encrypted backups) + `migrate-rename-ds1.sh`. Deploys are manual over SSH to a Docker host (see `docs/guides/deployment.md`). |
 | `docs/` | Two-plane docs: `design/` (architecture + ADRs), `reference/` (API), `guides/` (tenant-config, deployment), `product/` (RQ specs). Index: `docs/README.md`. |
 
 ## Entry points
