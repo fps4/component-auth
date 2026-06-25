@@ -61,7 +61,13 @@ export const CONFIG = {
     // The scope a client-credentials token must carry to reach the management plane. Granular
     // per-area scopes (`admin:tenants`, `admin:users`, …) also satisfy their own routes for
     // least-privilege agents; this superscope satisfies all of them.
-    requiredScope: process.env.ADMIN_API_SCOPE ?? 'admin'
+    requiredScope: process.env.ADMIN_API_SCOPE ?? 'admin',
+    // Per-actor operator login (ADR-0010): a USER identity token (`sub`, no `cid`) whose `roles` claim
+    // (RQ-0005) contains one of these roles is accepted as an operator principal and mapped to the
+    // `requiredScope` superscope. This is what lets the admin console attribute actions to a human
+    // instead of one shared machine client. Empty list → no operator-by-role path (machine tokens only).
+    operatorRoles: (process.env.ADMIN_OPERATOR_ROLES ?? 'platform_admin')
+      .split(',').map((r) => r.trim()).filter(Boolean)
   },
   // Upstream Google OIDC app (RQ-0001). A single Google app per deployment federates user login;
   // the issued user token's `aud` is still per-consumer (oauth_clients.audience), not Google's.

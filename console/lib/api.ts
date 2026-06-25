@@ -1,12 +1,17 @@
 import 'server-only';
+import { callerToken } from '@/lib/identity';
 
 /**
- * Server-only client for the identity-service management API (ADR-0007). The admin bearer token lives
- * in server env (ADMIN_API_TOKEN) and is attached here, so it NEVER reaches the browser — the console
- * is a thin server-side proxy over /admin/v1. All mutations go through server actions that call these.
+ * Server-only client for the identity-service management API (ADR-0007, ADR-0010). The console is a thin
+ * server-side proxy over /admin/v1 — no token ever reaches the browser.
+ *
+ * Per-actor (ADR-0010): each request forwards the signed-in OPERATOR's token (read from the session
+ * cookie via lib/identity), so the management plane attributes the action to the human. Break-glass: if
+ * there is no operator session, fall back to the static `ADMIN_API_TOKEN` (bootstrap / non-interactive),
+ * which authenticates as a machine client and is NOT per-actor.
  */
 const BASE = process.env.ADMIN_API_URL ?? 'http://localhost:7305/admin/v1';
-const TOKEN = process.env.ADMIN_API_TOKEN ?? '';
+const BREAK_GLASS_TOKEN = process.env.ADMIN_API_TOKEN ?? '';
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly code?: string) {
@@ -16,10 +21,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = (await callerToken()) ?? BREAK_GLASS_TOKEN;
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...(init?.headers ?? {})
     },

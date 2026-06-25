@@ -211,8 +211,26 @@ describe('admin-auth (requireAdmin)', () => {
     expect(nexted).toBe(false);
   });
 
-  it('403s a user token (no cid) even with an admin scope', async () => {
+  it('403s a user token (no cid) even with an admin scope but no operator role', async () => {
     const token = await sign({ sub: 'user@x.com', scope: 'admin' });
+    const { statusCode, nexted } = await run(token, ADMIN_SCOPES.users);
+    expect(statusCode).toBe(403);
+    expect(nexted).toBe(false);
+  });
+
+  // ADR-0010: a user identity token whose `roles` claim carries a configured operator role is an
+  // operator principal, mapped to the superscope and attributed per-actor by `sub`.
+  it('allows a user token whose roles include an operator role and attaches an operator principal', async () => {
+    const token = await sign({ sub: 'ada@fps4.nl', tid: 't1', roles: ['platform_admin'] });
+    const { nexted, req } = await run(token, ADMIN_SCOPES.keys);
+    expect(nexted).toBe(true);
+    expect(req.admin.kind).toBe('operator');
+    expect(req.admin.subject).toBe('ada@fps4.nl');
+    expect(req.admin.clientId).toBeUndefined();
+  });
+
+  it('403s a user token whose roles do not include an operator role', async () => {
+    const token = await sign({ sub: 'member@x.com', tid: 't1', roles: ['member'] });
     const { statusCode, nexted } = await run(token, ADMIN_SCOPES.users);
     expect(statusCode).toBe(403);
     expect(nexted).toBe(false);
