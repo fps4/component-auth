@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import mongoose, { Connection, Document, Model } from 'mongoose';
 
-export interface OAuthClientDocument extends Document {
+export interface OAuthClientDocument extends Document<string> {
   _id: string; // client_id
   tenantId: string;
   name: string;

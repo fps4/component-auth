@@ -10,7 +10,7 @@ import mongoose, { Connection, Document, Model } from 'mongoose';
  * an email change — matching the identity contract maestro verifies. `passwordHash` uses the salted
  * scrypt scheme in `utils/hash.ts`; the raw password is never stored.
  */
-export interface UserDocument extends Document {
+export interface UserDocument extends Document<string> {
   _id: string;              // stable subject id (becomes the token `sub`)
   tenantId: string;
   email: string;            // unique per tenant (stored lowercased)

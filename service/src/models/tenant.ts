@@ -25,7 +25,7 @@ export interface TenantOAuthConfig {
   idp?: TenantIdpConfig | null;
 }
 
-export interface TenantDocument extends Document {
+export interface TenantDocument extends Document<string> {
   _id: string;
   name: string;
   status: 'active' | 'suspended' | 'trial' | 'deleted';

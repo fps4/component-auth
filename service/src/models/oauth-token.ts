@@ -1,6 +1,6 @@
 import mongoose, { Connection, Document, Model } from 'mongoose';
 
-export interface OAuthTokenDocument extends Document {
+export interface OAuthTokenDocument extends Document<string> {
   _id: string; // access token id (jti) or refresh token id
   tenantId: string;
   clientId: string;
