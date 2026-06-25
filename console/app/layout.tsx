@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Nav } from '@/components/nav';
+import { AppShell } from '@/components/app-shell';
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
@@ -12,12 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased">
-        <div className="grid min-h-screen grid-cols-[240px_1fr]">
-          <aside className="border-r bg-card">
-            <Nav />
-          </aside>
-          <main className="overflow-auto p-8">{children}</main>
-        </div>
+        <AppShell>{children}</AppShell>
         <Toaster richColors position="top-right" />
       </body>
     </html>

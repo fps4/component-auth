@@ -320,13 +320,20 @@ and the [admin console](../../console/README.md) all sit on the same service lay
 
 ### Authentication & scopes
 
-- Every request must carry `Authorization: Bearer <token>`, where the token is a **`client_credentials`**
-  access token minted by this service (verified against its own JWKS) for a client whose token carries an
-  admin scope.
+- Every request must carry `Authorization: Bearer <token>`, an access token minted by this service
+  (verified against its own JWKS). The plane accepts **two principal kinds** (ADR-0010):
+  - a **machine principal** — a **`client_credentials`** token (`cid`) for a client whose token carries an
+    admin scope (agents/MCP + the console's break-glass token); or
+  - an **operator principal** — a **user identity token** (`sub`, no `cid`) whose `roles` claim
+    ([RQ-0005](../product/RQ-0005-user-roles-in-identity-token.md)) contains a configured operator role
+    (`ADMIN_OPERATOR_ROLES`, default `platform_admin`), mapped to the `admin` superscope. This is how the
+    admin console attributes each action to a **human** (the audit `principalSubject` is the operator's `sub`).
 - The superscope **`admin`** (configurable via `ADMIN_API_SCOPE`) satisfies any admin route. For
   least-privilege agents, granular per-area scopes also satisfy their own routes:
-  `admin:tenants`, `admin:clients`, `admin:users`, `admin:keys`, `admin:stats`.
-- Missing/invalid/expired token → `401 unauthorized`; valid token without the required scope → `403 forbidden`.
+  `admin:tenants`, `admin:clients`, `admin:users`, `admin:keys`, `admin:stats`. (Operator principals are
+  granted the superscope.)
+- Missing/invalid/expired token → `401 unauthorized`; a valid token that is neither an admin-scoped
+  machine token nor an operator-role user token, or one lacking the required scope → `403 forbidden`.
 - Every **mutation** is written to the append-only `audit_logs` collection (principal, action, method,
   path, target, status, tenant).
 

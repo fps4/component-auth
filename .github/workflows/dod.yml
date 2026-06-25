@@ -53,3 +53,20 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test -- --run
+
+  console:
+    name: console (build + test)
+    runs-on: [self-hosted, ds1]
+    defaults:
+      run:
+        working-directory: console
+    # Build + vitest unit/component tests (RQ-0008). The Playwright smoke (npm run test:e2e) is local —
+    # it needs a browser the ds1 runner does not provision; wire it in once the runner has one.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
+      - run: npm test

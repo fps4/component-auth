@@ -41,6 +41,10 @@ work warrants it.
 | [RQ-0004 — Seed config provisioning](./product/RQ-0004-seed-config-provisioning.md) | [ADR-0003](./design/decisions/0003-seed-config-not-admin-api.md) |
 | [RQ-0005 — User roles in the identity token](./product/RQ-0005-user-roles-in-identity-token.md) | [ADR-0005](./design/decisions/0005-decentralized-authorization.md) |
 | [RQ-0006 — Seed-as-code & recovery](./product/RQ-0006-seed-as-code-and-recovery.md) | [ADR-0006](./design/decisions/0006-seed-as-code-secrets-in-github.md) |
+| [RQ-0007 — Console operator login & per-actor identity](./product/RQ-0007-console-operator-login.md) | [ADR-0010](./design/decisions/0010-console-operator-authentication.md) |
+| [RQ-0008 — Console test & e2e harness](./product/RQ-0008-console-test-harness.md) | [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md) |
+| [RQ-0009 — Console ↔ management-API parity](./product/RQ-0009-console-api-parity.md) | [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md) |
+| [RQ-0010 — Console UX & IA polish](./product/RQ-0010-console-ux-polish.md) | [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md) |
 
 The **management plane** (HTTP `/admin/v1` + MCP + admin console) and the repositioning as a standalone
 identity service are decided in [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md),

@@ -5,18 +5,24 @@ import { listPublicKeys } from '../utils/key-store.js';
 import logger from '../utils/logger.js';
 
 /**
- * Admin-auth layer (ADR-0007). Management principals authenticate exactly like any machine client —
- * a `client_credentials` token from this service — but their token must carry an admin scope. We
- * verify the bearer JWT against this service's OWN JWKS (the same keys `/.well-known/jwks.json`
- * publishes), confirm it is a client-credentials token (`cid` present), and require the configured
- * `admin` scope (or a granular `admin:<area>` scope for least-privilege agents). The verified
- * principal is attached to the request for the route + audit layers.
+ * Admin-auth layer (ADR-0007, ADR-0010). The plane accepts two principal kinds, both verified against
+ * this service's OWN JWKS (the same keys `/.well-known/jwks.json` publishes) with the expected `iss`:
+ *
+ *  - a MACHINE principal — a `client_credentials` token (`cid` present) carrying the configured `admin`
+ *    superscope or a granular `admin:<area>` scope (agents/MCP + break-glass console token); or
+ *  - an OPERATOR principal — a USER identity token (`sub` present, no `cid`) whose `roles` claim (RQ-0005)
+ *    contains a configured operator role (`CONFIG.admin.operatorRoles`). The role is mapped to the `admin`
+ *    superscope so a human operator (via the admin console — ADR-0010) is attributable per-actor.
+ *
+ * The verified principal is attached to the request for the route + audit layers; for an operator the
+ * audit's `principalSubject` is the human's stable `sub`.
  */
 export interface AdminPrincipal {
-  clientId: string;       // token `cid`
+  clientId?: string;      // token `cid` (machine principals only)
   subject?: string;       // token `sub`
   tenantId?: string;      // token `tid`
   scopes: string[];
+  kind: 'machine' | 'operator';
 }
 
 declare global {
@@ -91,15 +97,38 @@ export async function verifyAdminToken(token: string): Promise<AdminPrincipal> {
     }
   }
   const cid = typeof payload.cid === 'string' ? payload.cid : undefined;
-  if (!cid) {
-    throw new AdminTokenError('Not a machine (client-credentials) token', 'forbidden');
+  const subject = typeof payload.sub === 'string' ? payload.sub : undefined;
+  const tenantId = typeof payload.tid === 'string' ? payload.tid : undefined;
+
+  // Machine principal: a client_credentials token. Authority comes from its own admin scope(s).
+  if (cid) {
+    return {
+      kind: 'machine',
+      clientId: cid,
+      subject,
+      tenantId,
+      scopes: parseScopes((payload as Record<string, unknown>).scope)
+    };
   }
-  return {
-    clientId: cid,
-    subject: typeof payload.sub === 'string' ? payload.sub : undefined,
-    tenantId: typeof payload.tid === 'string' ? payload.tid : undefined,
-    scopes: parseScopes((payload as Record<string, unknown>).scope)
-  };
+
+  // Operator principal (ADR-0010): a user identity token whose `roles` claim carries a configured
+  // operator role. The role is mapped to the `admin` superscope so the rest of the guard is uniform.
+  const roles = parseScopes((payload as Record<string, unknown>).roles);
+  const operatorRoles = CONFIG.admin.operatorRoles;
+  const isOperator = operatorRoles.length > 0 && roles.some((r) => operatorRoles.includes(r));
+  if (subject && isOperator) {
+    return {
+      kind: 'operator',
+      subject,
+      tenantId,
+      scopes: [CONFIG.admin.requiredScope]
+    };
+  }
+
+  throw new AdminTokenError(
+    'Token is neither a machine (client-credentials) token with an admin scope nor a user token with an operator role',
+    'forbidden'
+  );
 }
 
 /**
