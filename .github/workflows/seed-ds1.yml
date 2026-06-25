@@ -1,0 +1,123 @@
+name: seed-ds1
+
+# Seed (upsert) the ds1 identity data from config/seed*.yaml into the live MongoDB.
+#
+# Why this exists: the data is the system of record (ADR-0007/0008) and the deploy ships the SERVICE,
+# not the seed data — so adding a tenant/client/user used to mean a hand-run `npm run seed` on the host.
+# This makes it a button (workflow_dispatch) AND automatic on a seed-file change. Secrets stay in GitHub
+# Actions and are injected at run time (never committed), exactly like deploy-ds1.
+#
+# Safety: the seeder is idempotent — it upserts tenants + clients and inserts users only if absent; it
+# NEVER resets an existing user's password (use `manage-users set-password` for that). So a re-run can
+# add/repair definitions without clobbering live credentials.
+#
+# The production service image can't run the seeder (dist-only), so this builds a small seeder image
+# (docker/seed.Dockerfile) and runs it once on the compose network against the `mongo` service.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed_file:
+        description: Repo-relative seed file to apply (the full file needs every ${SEED_*} secret).
+        default: config/seed.operators.yaml
+        required: true
+  push:
+    branches: [main]
+    paths:
+      - config/seed.yaml
+      - config/seed.operators.yaml
+
+permissions:
+  contents: read
+
+# Never let two seeds (or a seed and itself) race on the same DB.
+concurrency:
+  group: seed-ds1
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: [self-hosted, ds1]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # need the previous commit to diff which seed file(s) changed on push
+
+      - name: Determine seed file(s) to apply
+        id: files
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            list="${{ inputs.seed_file }}"
+          else
+            base="${{ github.event.before }}"
+            git rev-parse --verify "${base}^{commit}" >/dev/null 2>&1 || base="$(git rev-parse HEAD~1 2>/dev/null || true)"
+            list=""
+            [ -n "$base" ] && list="$(git diff --name-only "$base" HEAD -- config/seed.yaml config/seed.operators.yaml | tr '\n' ' ')"
+            # Fallback: if we can't tell what changed, seed the canonical full file.
+            [ -n "$(echo "$list" | tr -d ' ')" ] || list="config/seed.yaml"
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "Will seed: $list"
+
+      - name: Build the seeder image
+        run: docker build -f docker/seed.Dockerfile -t ids-seeder:${{ github.sha }} .
+
+      - name: Assemble seed secrets (runner-local env file)
+        env:
+          SEED_DEMO_PASSWORD: ${{ secrets.SEED_DEMO_PASSWORD }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+          SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD: ${{ secrets.SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD }}
+          SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD: ${{ secrets.SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD }}
+          MAESTRO_GATEWAY_DS1_SECRET: ${{ secrets.MAESTRO_GATEWAY_DS1_SECRET }}
+          MAESTRO_COPILOT_DS1_SECRET: ${{ secrets.MAESTRO_COPILOT_DS1_SECRET }}
+          MAESTRO_COMPONENTS_DS1_SECRET: ${{ secrets.MAESTRO_COMPONENTS_DS1_SECRET }}
+          SEED_MAESTRO_PO_PASSWORD: ${{ secrets.SEED_MAESTRO_PO_PASSWORD }}
+          SEED_MAESTRO_SA_PASSWORD: ${{ secrets.SEED_MAESTRO_SA_PASSWORD }}
+          SEED_MAESTRO_ADMIN_PASSWORD: ${{ secrets.SEED_MAESTRO_ADMIN_PASSWORD }}
+          SEED_COACH_ADMIN_PASSWORD: ${{ secrets.SEED_COACH_ADMIN_PASSWORD }}
+          SEED_COACH_LEARNER_PASSWORD: ${{ secrets.SEED_COACH_LEARNER_PASSWORD }}
+          SEED_COACH_OFFICER_PASSWORD: ${{ secrets.SEED_COACH_OFFICER_PASSWORD }}
+          IDENTITY_ADMIN_CLIENT_SECRET: ${{ secrets.IDENTITY_ADMIN_CLIENT_SECRET }}
+          SEED_CONSOLE_ADMIN_PASSWORD: ${{ secrets.SEED_CONSOLE_ADMIN_PASSWORD }}
+        run: |
+          umask 077
+          : > seed.secrets.env
+          for v in \
+            SEED_DEMO_PASSWORD SEED_ADMIN_PASSWORD \
+            SEED_SOVEREIGN_COPILOT_DEMO_PASSWORD SEED_SOVEREIGN_COPILOT_ADMIN_PASSWORD \
+            MAESTRO_GATEWAY_DS1_SECRET MAESTRO_COPILOT_DS1_SECRET MAESTRO_COMPONENTS_DS1_SECRET \
+            SEED_MAESTRO_PO_PASSWORD SEED_MAESTRO_SA_PASSWORD SEED_MAESTRO_ADMIN_PASSWORD \
+            SEED_COACH_ADMIN_PASSWORD SEED_COACH_LEARNER_PASSWORD SEED_COACH_OFFICER_PASSWORD \
+            IDENTITY_ADMIN_CLIENT_SECRET SEED_CONSOLE_ADMIN_PASSWORD; do
+            val="${!v}"
+            [ -n "$val" ] && printf '%s=%s\n' "$v" "$val" >> seed.secrets.env
+          done
+          echo "Assembled $(grep -c . seed.secrets.env) secret(s) (unset ones are omitted; the seeder fails loudly if a referenced one is missing)."
+
+      - name: Run the seed against the live stack
+        run: |
+          # Join whatever network the mongo container is actually on, so `mongo` resolves.
+          NET=$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' identity-service-mongo 2>/dev/null | awk '{print $1}')
+          [ -n "$NET" ] || { echo "::error::identity-service-mongo not running — deploy the stack first"; exit 1; }
+          echo "mongo network: $NET"
+          for f in ${{ steps.files.outputs.list }}; do
+            echo "::group::seed $f"
+            # config/* is copied to /config/* inside the seeder image.
+            docker run --rm --network "$NET" \
+              --env-file seed.secrets.env \
+              -e MONGO_URI=mongodb://mongo:27017 \
+              -e MONGO_DB_NAME=identity-service \
+              -e SEED_FILE="/$f" \
+              ids-seeder:${{ github.sha }}
+            echo "::endgroup::"
+          done
+
+      - name: Verify
+        run: |
+          docker exec identity-service-mongo mongosh identity-service --quiet --eval \
+            'print("tenants:", db.tenants.countDocuments({}), " clients:", db.oauth_clients.countDocuments({}), " operators tenant:", db.tenants.countDocuments({_id:"operators"}), " identity-console client:", db.oauth_clients.countDocuments({_id:"identity-console"}))'
+
+      - name: Cleanup assembled secrets (always)
+        if: always()
+        run: rm -f seed.secrets.env

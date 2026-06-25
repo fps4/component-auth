@@ -1,0 +1,16 @@
+# Root .dockerignore — applies ONLY to builds whose context is the repo root (docker/seed.Dockerfile).
+# The service/console images build from their own subdir contexts, so this does not affect them.
+# Keep the seeder context to service/ + config/ + docker/ and drop everything heavy/irrelevant.
+**/node_modules
+**/.next
+**/dist
+**/out
+**/*.tsbuildinfo
+.git
+.github
+console
+react
+sdk
+docs
+tests
+*.md
