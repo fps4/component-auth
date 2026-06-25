@@ -212,7 +212,7 @@ tenants:
     status: active
     allowedOrigins:
       - http://localhost:7306        # local console dev (next dev / next start -p 7306)
-      - https://console.fps4.nl      # ds1 console behind Cloudflare — change if you use another hostname
+      - https://ids.fps4.nl          # ds1 console behind Cloudflare
     oauth:
       enabled: true
       allowedGrantTypes: [password]

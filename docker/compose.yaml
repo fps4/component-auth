@@ -75,8 +75,8 @@ services:
 
   # Operator admin console (RQ-0007, ADR-0007/0010). A thin Next.js client over /admin/v1 — holds no DB
   # credentials. Operators sign in with the `password` grant (browser → public issuer) and the console
-  # forwards their token server-side. Published on :7306; point a Cloudflare hostname (e.g.
-  # console.fps4.nl) at the docker host's :7306. On net-public so the tunnel can reach it.
+  # forwards their token server-side. Published on :7306; the Cloudflare hostname ids.fps4.nl
+  # points at the docker host's :7306. On net-public so the tunnel can reach it.
   console:
     container_name: identity-service-console
     build:
