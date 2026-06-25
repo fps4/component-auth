@@ -70,3 +70,28 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test
+
+  dependency-scan: # fps4 security floor (standards/security.yaml) — the advisory-DB vuln scan, BLOCKING.
+    # DISTINCT from secret-scan: this asks "is a package we depend on known-bad?". Trivy filesystem scan
+    # on HIGH,CRITICAL with --ignore-unfixed (only actionable advisories gate, so transitive unfixed noise
+    # never red-walls a PR). Never disabled. A product that ships an image SHOULD also add a `scan-type:
+    # image` scan of the built tag (cf. ../maestro dod.yml) to catch pinned transitives this fs scan can't.
+    runs-on: [self-hosted, ds1]
+    steps:
+      - uses: actions/checkout@v4
+      - name: cache the trivy vuln DB # warm-start so a registry blip/rate-limit doesn't flake the gate
+        uses: actions/cache@v4
+        with:
+          path: .cache/trivy
+          key: trivy-db
+      - name: trivy filesystem scan (deps, IaC misconfig)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"          # BLOCKING — a fixable HIGH/CRITICAL fails the gate
+          format: table
+        env:
+          TRIVY_CACHE_DIR: .cache/trivy
