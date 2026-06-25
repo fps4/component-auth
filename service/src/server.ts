@@ -9,12 +9,8 @@ import { startMaestroTelemetry } from './maestro/telemetry.js';
 import sessionRoutes from './routes/session-routes.js';
 import oauthRoutes from './routes/oauth-routes.js';
 import adminRoutes from './routes/admin-routes.js';
-import {
-  refreshTenantOrigins,
-  scheduleTenantCorsRefresh,
-  hasTenantOrigins,
-  isTenantOriginAllowed
-} from './utils/tenant-cors.js';
+import { refreshTenantOrigins, scheduleTenantCorsRefresh } from './utils/tenant-cors.js';
+import { buildCorsOptions, corsErrorHandler } from './utils/cors.js';
 import { listPublicKeys, ensureActiveSigningKey } from './utils/key-store.js';
 
 async function bootstrap() {
@@ -36,43 +32,10 @@ async function bootstrap() {
       ];
   const allowedOrigins = new Set([...staticOrigins, ...devOrigins]);
 
-  const isPrivateNetworkOriginAllowed = (origin: string): boolean => {
-    if (isProd) return false;
-    try {
-      const { hostname } = new URL(origin);
-      if (!hostname) return false;
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
-        return true;
-      }
-      if (hostname.startsWith('10.')) return true;
-      if (hostname.startsWith('192.168.')) return true;
-      return /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
-    } catch {
-      return false;
-    }
-  };
-
   await refreshTenantOrigins();
   scheduleTenantCorsRefresh(CONFIG.corsRefreshIntervalMs);
 
-  const corsOptions: cors.CorsOptions = {
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.has(origin) || isTenantOriginAllowed(origin) || isPrivateNetworkOriginAllowed(origin)) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.size === 0 && !hasTenantOrigins()) {
-        return callback(null, true);
-      }
-      return callback(new Error('Not allowed by CORS'));
-    },
-    methods: Array.from(CONFIG.cors.allowedMethods),
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    optionsSuccessStatus: 204
-  };
-
-  app.use(cors(corsOptions));
+  app.use(cors(buildCorsOptions({ allowedOrigins, isProd, methods: Array.from(CONFIG.cors.allowedMethods) })));
 
   // Time every request into a rolling window for the maestro golden-signal rollup (inert by itself —
   // it only records; the telemetry loop below reads it). Window = the emit cadence.
@@ -104,6 +67,10 @@ async function bootstrap() {
     app.use(CONFIG.admin.basePath, adminRoutes);
     logger.info({ basePath: CONFIG.admin.basePath }, 'management API enabled');
   }
+
+  // A disallowed CORS Origin reaches here as a tagged error; return a clean 403 JSON (OAuth-style)
+  // rather than Express's default 500 HTML. Other errors fall through to the default handler.
+  app.use(corsErrorHandler);
 
   let server: Server;
 
