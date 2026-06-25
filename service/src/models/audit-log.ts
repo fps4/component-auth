@@ -7,7 +7,7 @@ import mongoose, { Connection, Document, Model } from 'mongoose';
  * the resulting HTTP status — the per-actor accountability ADR-0003 said a static shared secret could
  * not provide. Never updated or deleted in normal operation.
  */
-export interface AuditLogDocument extends Document {
+export interface AuditLogDocument extends Document<string> {
   _id: string;
   at: Date;
   principalClientId?: string;  // token `cid`

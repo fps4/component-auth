@@ -13,7 +13,7 @@ import mongoose, { Connection, Document, Model } from 'mongoose';
  * `codeChallenge` is the consumer's PKCE challenge (S256), verified against its `code_verifier`
  * at exchange. `googleState` / `nonce` protect the Google leg against CSRF / replay.
  */
-export interface OAuthAuthorizationDocument extends Document {
+export interface OAuthAuthorizationDocument extends Document<string> {
   _id: string;                 // internal authorization id
   tenantId: string;
   clientId: string;
