@@ -1,7 +1,7 @@
 import mongoose, { Connection, Document, Model } from 'mongoose';
 import { getTenantModel } from './tenant.js';
 
-export interface SessionDocument extends Document {
+export interface SessionDocument extends Document<string> {
   _id: string;
   tenantId: string;
   visitorId?: string | null;
