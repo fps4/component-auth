@@ -59,6 +59,9 @@ services:
       # Management-plane admin client secret (ADR-0007). Present in the container so the in-container MCP
       # launcher (docker/mcp-admin.sh) can mint an admin token; must equal the seeded client secret.
       IDENTITY_ADMIN_CLIENT_SECRET: ${IDENTITY_ADMIN_CLIENT_SECRET:-}
+      # Operator-login (ADR-0010): user tokens whose `roles` include one of these are accepted by the
+      # management plane as a per-actor operator principal. Matches the `operators` tenant in seed.yaml.
+      ADMIN_OPERATOR_ROLES: ${ADMIN_OPERATOR_ROLES:-platform_admin}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_PRETTY: ${LOG_PRETTY:-false}
       # Outbound fleet monitoring to maestro. Empty MAESTRO_API_URL keeps the channel inert (default).
@@ -69,6 +72,33 @@ services:
       MAESTRO_RUNTIME_CLIENT_SECRET: ${MAESTRO_RUNTIME_CLIENT_SECRET:-}
     ports:
       - "${CORE_AUTH_PORT:-7305}:7305"
+
+  # Operator admin console (RQ-0007, ADR-0007/0010). A thin Next.js client over /admin/v1 — holds no DB
+  # credentials. Operators sign in with the `password` grant (browser → public issuer) and the console
+  # forwards their token server-side. Published on :7306; point a Cloudflare hostname (e.g.
+  # console.fps4.nl) at the docker host's :7306. On net-public so the tunnel can reach it.
+  console:
+    container_name: identity-service-console
+    build:
+      context: ../console
+      dockerfile: Dockerfile
+    depends_on:
+      - identity-service
+    networks:
+      - default
+      - net-public
+    environment:
+      # Next standalone server (node server.js) honours PORT/HOSTNAME — bind all interfaces on 7306.
+      PORT: "7306"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: ${NODE_ENV:-production}
+      # Server-side calls to the management API stay on the internal docker network.
+      ADMIN_API_URL: ${CONSOLE_ADMIN_API_URL:-http://identity-service:7305/admin/v1}
+      # The BROWSER runs the password grant against the PUBLIC issuer; the client id must match seed.yaml.
+      NEXT_PUBLIC_IDENTITY_SERVICE_BASE: ${CONSOLE_IDENTITY_BASE:-https://auth.fps4.nl}
+      NEXT_PUBLIC_IDENTITY_SERVICE_CLIENT_ID: ${CONSOLE_CLIENT_ID:-identity-console}
+    ports:
+      - "${CONSOLE_PORT:-7306}:7306"
 
 volumes:
   mongo_data:

@@ -13,3 +13,15 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  console:
+    environment:
+      NODE_ENV: production
+    # /login is public and always 200s once the server is listening — use it as the liveness probe
+    # (the console has no dedicated /health endpoint). Next standalone boot is fast.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:7306/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s

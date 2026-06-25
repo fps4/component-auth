@@ -193,9 +193,42 @@ tenants:
       limits: { tokensPerMinute: 60 }
     clients:
       - id: identity-admin-mcp
-        name: identity-service admin (MCP + console)
+        name: identity-service admin (MCP + break-glass)
         grantTypes: [client_credentials]
         isConfidential: true
         secret: ${IDENTITY_ADMIN_CLIENT_SECRET}
         scopes: [admin]              # full management authority (see ADMIN_SCOPES); request scope=admin
         subject: admin-mcp@identity-service.fps4.nl   # attributed in the /admin audit log
+
+  # HUMAN operators of the admin console (RQ-0007, ADR-0010). Distinct from identity-service-ops above
+  # (the MACHINE admin client for MCP/curl/break-glass): here a person logs into the console with the
+  # `password` grant via the `identity-console` client, and their user token carries `roles:[platform_admin]`.
+  # The management plane maps that operator role to admin authority and audits the action against the
+  # human `sub` — the per-actor audit ADR-0007 promised. The console verifies tokens by `iss`+JWKS, not
+  # `aud`, so the client `audience` is just a label. allowedOrigins MUST list every browser origin the
+  # console is served from (the OAuth token endpoint enforces CORS per tenant — service/src/server.ts).
+  - id: operators
+    name: identity-service operators
+    status: active
+    allowedOrigins:
+      - http://localhost:7306        # local console dev (next dev / next start -p 7306)
+      - https://console.fps4.nl      # ds1 console behind Cloudflare — change if you use another hostname
+    oauth:
+      enabled: true
+      allowedGrantTypes: [password]
+      allowedScopes: []
+      allowedRoles: [platform_admin]   # RQ-0005 allow-list; mapped to admin by ADMIN_OPERATOR_ROLES (ADR-0010)
+      idp: { provider: local }
+      limits: { tokensPerMinute: 120 }
+    clients:
+      - id: identity-console
+        name: identity-service admin console
+        grantTypes: [password]
+        audience: identity-console     # token `aud` (label only — the admin plane checks iss+JWKS, not aud)
+        redirectUris: []
+        isConfidential: false
+    users:
+      - email: admin@identity-service.fps4.nl
+        password: ${SEED_CONSOLE_ADMIN_PASSWORD}   # set in env / GitHub secret; supplied at manual seed time
+        status: active
+        roles: [platform_admin]
