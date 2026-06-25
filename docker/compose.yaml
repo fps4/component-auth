@@ -82,6 +82,12 @@ services:
     build:
       context: ../console
       dockerfile: Dockerfile
+      # NEXT_PUBLIC_* are baked into the CLIENT bundle at BUILD time — they must be build args, not runtime
+      # env (the browser ignores container env). The browser runs the password grant against the PUBLIC
+      # issuer; the client id must match the `identity-console` client in seed.yaml.
+      args:
+        NEXT_PUBLIC_IDENTITY_SERVICE_BASE: ${CONSOLE_IDENTITY_BASE:-https://auth.fps4.nl}
+        NEXT_PUBLIC_IDENTITY_SERVICE_CLIENT_ID: ${CONSOLE_CLIENT_ID:-identity-console}
     depends_on:
       - identity-service
     networks:
@@ -92,11 +98,8 @@ services:
       PORT: "7306"
       HOSTNAME: "0.0.0.0"
       NODE_ENV: ${NODE_ENV:-production}
-      # Server-side calls to the management API stay on the internal docker network.
+      # Server-side (lib/api, server-only) call to the management API on the internal docker network.
       ADMIN_API_URL: ${CONSOLE_ADMIN_API_URL:-http://identity-service:7305/admin/v1}
-      # The BROWSER runs the password grant against the PUBLIC issuer; the client id must match seed.yaml.
-      NEXT_PUBLIC_IDENTITY_SERVICE_BASE: ${CONSOLE_IDENTITY_BASE:-https://auth.fps4.nl}
-      NEXT_PUBLIC_IDENTITY_SERVICE_CLIENT_ID: ${CONSOLE_CLIENT_ID:-identity-console}
     ports:
       - "${CONSOLE_PORT:-7306}:7306"
 
