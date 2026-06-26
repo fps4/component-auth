@@ -26,6 +26,7 @@ on:
     paths:
       - config/seed.yaml
       - config/seed.operators.yaml
+      - config/seed.coach.yaml
 
 permissions:
   contents: read
@@ -53,7 +54,7 @@ jobs:
             base="${{ github.event.before }}"
             git rev-parse --verify "${base}^{commit}" >/dev/null 2>&1 || base="$(git rev-parse HEAD~1 2>/dev/null || true)"
             list=""
-            [ -n "$base" ] && list="$(git diff --name-only "$base" HEAD -- config/seed.yaml config/seed.operators.yaml | tr '\n' ' ')"
+            [ -n "$base" ] && list="$(git diff --name-only "$base" HEAD -- config/seed.yaml config/seed.operators.yaml config/seed.coach.yaml | tr '\n' ' ')"
             # Fallback: if we can't tell what changed, seed the canonical full file.
             [ -n "$(echo "$list" | tr -d ' ')" ] || list="config/seed.yaml"
           fi
