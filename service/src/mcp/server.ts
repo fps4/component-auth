@@ -1,9 +1,14 @@
 /**
- * MCP management server (ADR-0007). A thin Model Context Protocol adapter that exposes the SAME
- * management operations as the HTTP admin API — over the SAME service layer (`adminService`), the SAME
- * admin-auth model (a client-credentials token carrying an `admin`/`admin:<area>` scope), and the SAME
- * append-only audit trail. One authorization model, two transports (HTTP for humans/automation, MCP for
- * agents).
+ * MCP management server (ADR-0007, scoped by ADR-0011). A thin Model Context Protocol adapter over the
+ * SAME service layer (`adminService`), the SAME admin-auth model (a client-credentials token carrying an
+ * `admin`/`admin:<area>` scope), and the SAME append-only audit trail as the HTTP admin API.
+ *
+ * Scope (ADR-0011): the MCP is the *agent* face on the IMPERATIVE side — read + operational only. It does
+ * NOT provision structure: tenants and OAuth clients are declarative and come from seed config (GitOps),
+ * never an agent's `create_client`/`onboard_tenant` call — that drift is exactly what ADR-0011 fixes. So
+ * `onboard_tenant`, `create_client`, and `delete_client` are intentionally absent here; they remain on
+ * the HTTP admin API for break-glass. Users/credentials/keys are runtime state owned by the DB and stay.
+ * One authorization model, two transports (HTTP for humans/automation, MCP for agents).
  *
  * Transport: newline-delimited JSON-RPC 2.0 over stdio (the MCP stdio transport). The agent that runs
  * this process must hold an admin credential and pass its access token as IDENTITY_SERVICE_ADMIN_TOKEN;
@@ -42,33 +47,15 @@ const TOOLS: ToolDef[] = [
     inputSchema: obj({}),
     handler: () => adminService.listTenants()
   },
-  {
-    name: 'onboard_tenant',
-    description: 'Create or update a tenant (idempotent upsert). Pass `id` to update an existing one. `allowedOrigins` is the CORS allow-list (array of origins).',
-    areaScope: ADMIN_SCOPES.tenants,
-    inputSchema: obj({ id: str, name: str, status: str, allowedOrigins: strArr, oauth: { type: 'object' } }, ['name']),
-    handler: (a) => adminService.upsertTenant(a)
-  },
-  {
-    name: 'create_client',
-    description: 'Register an OAuth client under a tenant. Pass `id` to set a stable client_id (e.g. "coach-web"); omit to generate a UUID. Returns the generated client secret ONCE.',
-    areaScope: ADMIN_SCOPES.clients,
-    inputSchema: obj({ tenantId: str, id: str, name: str, grantTypes: strArr, scopes: strArr, redirectUris: strArr, audience: str }, ['tenantId', 'name', 'grantTypes']),
-    handler: (a) => adminService.createClient(a)
-  },
+  // Structural provisioning (onboard_tenant / create_client / delete_client) is intentionally NOT exposed
+  // here — tenants + OAuth clients are declarative, seeded from git config (ADR-0011). They remain on the
+  // HTTP admin API for break-glass. The MCP keeps only read + operational tools below.
   {
     name: 'rotate_client_secret',
-    description: 'Rotate a client secret. Returns the new secret ONCE.',
+    description: 'Rotate an existing client secret (operational credential rotation). Returns the new secret ONCE.',
     areaScope: ADMIN_SCOPES.clients,
     inputSchema: obj({ clientId: str }, ['clientId']),
     handler: (a) => adminService.rotateClientSecret(a.clientId)
-  },
-  {
-    name: 'delete_client',
-    description: 'Delete an OAuth client by its client_id (Mongo _id). 404 if it does not exist.',
-    areaScope: ADMIN_SCOPES.clients,
-    inputSchema: obj({ clientId: str }, ['clientId']),
-    handler: (a) => adminService.deleteClient(a.clientId)
   },
   {
     name: 'create_user',
