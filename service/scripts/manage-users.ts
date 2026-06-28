@@ -47,8 +47,11 @@ async function main() {
       assertPasswordPolicy(password);
       const existing = await User.findOne({ tenantId, email }).lean().exec();
       if (existing) throw new Error(`User already exists: ${email}`);
-      const doc = await User.create({ tenantId, email, passwordHash: hashSecret(password), status: 'active', passwordUpdatedAt: now });
-      console.log(`created user ${doc._id} (${email}) — this id is the token sub`);
+      // RQ-0005: honour --roles at creation so the new user's token carries the `roles` claim
+      // immediately (else it issues role-less tokens until a separate set-roles run).
+      const roles = (args.get('roles') ?? '').split(',').map((r) => r.trim()).filter(Boolean);
+      const doc = await User.create({ tenantId, email, passwordHash: hashSecret(password), status: 'active', passwordUpdatedAt: now, roles });
+      console.log(`created user ${doc._id} (${email}) — this id is the token sub; roles [${roles.join(', ')}]`);
       break;
     }
     case 'set-password': {
