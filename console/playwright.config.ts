@@ -19,10 +19,16 @@ export default defineConfig({
     },
     {
       // The console talks to the stub server-side; no real identity-service needed for the smoke.
-      command: `next start -p ${APP_PORT}`,
+      // `next start` does NOT serve `output: 'standalone'` — run the standalone server directly, after
+      // refreshing its static assets (they live outside the server bundle and change every build).
+      command:
+        'rm -rf .next/standalone/.next/static .next/standalone/public' +
+        ' && cp -r .next/static .next/standalone/.next/static' +
+        ' && (cp -r public .next/standalone/public 2>/dev/null || true)' +
+        ' && node .next/standalone/server.js',
       port: APP_PORT,
       reuseExistingServer: !process.env.CI,
-      env: { ADMIN_API_URL: `http://localhost:${STUB_PORT}/admin/v1` },
+      env: { PORT: String(APP_PORT), HOSTNAME: '127.0.0.1', ADMIN_API_URL: `http://localhost:${STUB_PORT}/admin/v1` },
     },
   ],
 });

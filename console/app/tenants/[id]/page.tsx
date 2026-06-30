@@ -16,12 +16,33 @@ export const dynamic = 'force-dynamic';
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let tenant: Awaited<ReturnType<typeof api.getTenant>>;
+  let tenant: Awaited<ReturnType<typeof api.getTenant>> | undefined;
+  let loadError: string | undefined;
   try {
     tenant = await api.getTenant(id);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
-    throw e;
+    // Degrade gracefully (e.g. a transient 401/5xx) instead of throwing an opaque client-side exception.
+    loadError = (e as Error).message;
+  }
+
+  if (!tenant) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link href="/tenants" className="hover:underline">Tenants</Link>
+          <span>/</span>
+          <span className="font-mono text-foreground">{id}</span>
+        </div>
+        <Card>
+          <CardHeader><CardTitle>Couldn&apos;t load this tenant</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-destructive">{loadError ?? 'Unknown error'}</p>
+            <Link href="/tenants" className="text-sm hover:underline">← Back to tenants</Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Clients and users are independent reads — fetch together, tolerate either failing.
