@@ -128,6 +128,19 @@ tenants:
         claims:
           role: product_runtime
           email: runtime@components.fps4.nl
+      # sovereign-skills-coach's ds1 runtime reports fleet telemetry to maestro under the
+      # "sovereign-skills-coach" product (registered in maestro/config/products.yaml with this exact
+      # runtime subject). The secret MUST equal the coach repo's MAESTRO_RUNTIME_CLIENT_SECRET Actions secret.
+      - id: sovereign-skills-coach-ds1
+        name: sovereign-skills-coach@ds1 runtime
+        grantTypes: [client_credentials]
+        isConfidential: true
+        secret: ${MAESTRO_COACH_DS1_SECRET}
+        audience: maestro-workspace
+        subject: runtime@sovereign-skills-coach.fps4.nl
+        claims:
+          role: product_runtime
+          email: runtime@sovereign-skills-coach.fps4.nl
     users:
       - email: po@maestro.fps4.nl
         password: ${SEED_MAESTRO_PO_PASSWORD}

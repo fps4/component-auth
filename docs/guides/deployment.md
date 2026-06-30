@@ -93,8 +93,8 @@ git, and no `age` master key.
 
   Idempotent: tenants/clients are upserted; **existing users are left untouched** — change a password with
   `npm run manage-users -- set-password --tenant=<id> --email=<e> --password=<p>`. A runtime client secret
-  must stay equal to its consumer-repo mirror (`MAESTRO_RUNTIME_CLIENT_SECRET` in the gateway/copilot repos,
-  US-0086).
+  must stay equal to its consumer-repo mirror (`MAESTRO_RUNTIME_CLIENT_SECRET` in the
+  gateway/copilot/sovereign-skills-coach repos, US-0086).
 
 ### Nightly backups & point-in-time recovery — ADR-0008
 
