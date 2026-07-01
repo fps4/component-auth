@@ -8,6 +8,7 @@ import { Field, Hidden } from '@/components/field';
 import {
   createClient, rotateClientSecret, deleteClient,
   createUser, resetPassword, setUserStatus, unlockUser, deleteUser,
+  linkIdentity, unlinkIdentity,
   setTenantStatus,
 } from '@/app/actions';
 
@@ -144,15 +145,37 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
           {users === undefined ? <p className="text-sm text-destructive">Failed to load users.</p> : (
             <Table>
-              <THead><tr><th>Email</th><th>Status</th><th>Roles</th><th>Actions</th></tr></THead>
+              <THead><tr><th>Email</th><th>Status</th><th>Roles</th><th>Identities</th><th>Actions</th></tr></THead>
               <TBody>
                 {users.map((u) => {
                   const locked = !!u.lockedUntil && new Date(u.lockedUntil) > new Date();
+                  const identities = u.identities ?? [];
                   return (
                     <tr key={u._id}>
                       <td>{u.email}</td>
                       <td>{u.status}{locked ? ' · locked' : ''}</td>
                       <td>{u.roles?.join(', ')}</td>
+                      <td>
+                        <div className="flex flex-col gap-1">
+                          {identities.map((idn) => (
+                            <div key={`${idn.provider}:${idn.subject}`} className="flex items-center gap-2">
+                              <span className="font-mono text-xs" title={idn.email ?? undefined}>{idn.provider}:{idn.subject}</span>
+                              <span title={idn.emailVerified ? 'email verified' : 'email unverified'} className={idn.emailVerified ? 'text-xs text-green-600' : 'text-xs text-muted-foreground'}>{idn.emailVerified ? '✓' : '?'}</span>
+                              <ActionForm action={unlinkIdentity} submitLabel="Unlink" variant="outline" confirm={`Unlink ${idn.provider}:${idn.subject} from ${u.email}?`} inline>
+                                <Hidden name="tenantId" value={tenant._id} />
+                                <Hidden name="email" value={u.email} />
+                                <Hidden name="subject" value={idn.subject} />
+                              </ActionForm>
+                            </div>
+                          ))}
+                          <ActionForm action={linkIdentity} submitLabel="Link Google" variant="outline" inline>
+                            <Hidden name="tenantId" value={tenant._id} />
+                            <Hidden name="email" value={u.email} />
+                            <Field name="subject" label="" placeholder="google sub" required />
+                          </ActionForm>
+                          {!identities.length && <span className="text-xs text-muted-foreground">none linked</span>}
+                        </div>
+                      </td>
                       <td>
                         <div className="flex flex-wrap items-center gap-2">
                           <ActionForm action={resetPassword} submitLabel="Reset" variant="outline" inline>

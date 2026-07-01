@@ -9,6 +9,8 @@ const { apiMock } = vi.hoisted(() => ({
     createClient: vi.fn(),
     rotateClientSecret: vi.fn(),
     createUser: vi.fn(),
+    linkIdentity: vi.fn(),
+    unlinkIdentity: vi.fn(),
   },
 }));
 
@@ -59,6 +61,40 @@ describe('console server actions', () => {
 
     expect(res.ok).toBe(true);
     expect(res.secret).toBe('s3cr3t');
+  });
+
+  it('linkIdentity forwards a google identity link and reports success (RQ-0011)', async () => {
+    apiMock.linkIdentity.mockResolvedValue({ email: 'op@acme.test', provider: 'google', subject: 'g-1', linked: true });
+    const { linkIdentity } = await import('@/app/actions');
+
+    const res = await linkIdentity({ ok: false }, form({ tenantId: 't1', email: 'op@acme.test', subject: 'g-1' }));
+
+    expect(res.ok).toBe(true);
+    expect(apiMock.linkIdentity).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 't1', email: 'op@acme.test', provider: 'google', subject: 'g-1' }),
+    );
+  });
+
+  it('unlinkIdentity forwards a google identity unlink and reports success (RQ-0011)', async () => {
+    apiMock.unlinkIdentity.mockResolvedValue({ email: 'op@acme.test', provider: 'google', subject: 'g-1', unlinked: true });
+    const { unlinkIdentity } = await import('@/app/actions');
+
+    const res = await unlinkIdentity({ ok: false }, form({ tenantId: 't1', email: 'op@acme.test', subject: 'g-1' }));
+
+    expect(res.ok).toBe(true);
+    expect(apiMock.unlinkIdentity).toHaveBeenCalledWith(
+      { tenantId: 't1', email: 'op@acme.test', provider: 'google', subject: 'g-1' },
+    );
+  });
+
+  it('surfaces the ApiError message when linking a subject already owned', async () => {
+    apiMock.linkIdentity.mockRejectedValue(new FakeApiError('Identity is already linked to another user', 409, 'identity_linked'));
+    const { linkIdentity } = await import('@/app/actions');
+
+    const res = await linkIdentity({ ok: false }, form({ tenantId: 't1', email: 'b@acme.test', subject: 'shared' }));
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toBe('Identity is already linked to another user');
   });
 
   it('returns ok:false with the ApiError message on failure', async () => {

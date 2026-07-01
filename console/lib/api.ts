@@ -50,7 +50,8 @@ export interface Stats {
 export interface Tenant { _id: string; name: string; status: string; region?: string; oauth?: TenantOAuth }
 export interface TenantOAuth { enabled?: boolean; allowedGrantTypes?: string[]; allowedScopes?: string[]; idp?: { provider?: string } }
 export interface Client { _id: string; tenantId: string; name: string; grantTypes: string[]; scopes: string[]; audience?: string; isConfidential?: boolean; redirectUris?: string[] }
-export interface User { _id: string; tenantId: string; email: string; status: string; roles?: string[]; emailVerified?: boolean; lockedUntil?: string | null; failedAttempts?: number }
+export interface FederatedIdentity { provider: string; subject: string; email?: string; emailVerified?: boolean; linkedAt?: string }
+export interface User { _id: string; tenantId: string; email: string; status: string; roles?: string[]; emailVerified?: boolean; lockedUntil?: string | null; failedAttempts?: number; identities?: FederatedIdentity[] }
 export interface AuditEntry { _id: string; at: string; action: string; principalClientId?: string; targetId?: string; status: number }
 
 export const api = {
@@ -70,5 +71,7 @@ export const api = {
   setUserStatus: (body: Record<string, unknown>) => request<{ ok: boolean }>('/users/status', { method: 'POST', body: JSON.stringify(body) }),
   unlockUser: (body: Record<string, unknown>) => request<{ ok: boolean }>('/users/unlock', { method: 'POST', body: JSON.stringify(body) }),
   deleteUser: (body: Record<string, unknown>) => request<{ email: string; deleted: true }>('/users/delete', { method: 'POST', body: JSON.stringify(body) }),
+  linkIdentity: (body: Record<string, unknown>) => request<{ email: string; provider: string; subject: string; linked: true }>('/users/link-identity', { method: 'POST', body: JSON.stringify(body) }),
+  unlinkIdentity: (body: Record<string, unknown>) => request<{ email: string; provider: string; subject: string; unlinked: true }>('/users/unlink-identity', { method: 'POST', body: JSON.stringify(body) }),
   rotateKey: () => request<{ kid: string }>('/keys/rotate', { method: 'POST' })
 };

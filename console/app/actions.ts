@@ -127,6 +127,33 @@ export async function deleteUser(_prev: ActionResult, fd: FormData): Promise<Act
   });
 }
 
+/** Link a federated identity (Google) onto an existing user (RQ-0011). The operator counterpart to the
+ *  automatic link-on-verified-email at login, for the ambiguous cases the system won't merge itself. */
+export async function linkIdentity(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const tenantId = s(fd, 'tenantId');
+    await api.linkIdentity({
+      tenantId,
+      email: s(fd, 'email'),
+      provider: 'google',
+      subject: s(fd, 'subject'),
+      identityEmail: s(fd, 'identityEmail') || undefined,
+    });
+    revalidateUser(tenantId);
+    return { ok: true, message: 'Identity linked' };
+  });
+}
+
+/** Remove a linked federated identity from a user (RQ-0011). */
+export async function unlinkIdentity(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const tenantId = s(fd, 'tenantId');
+    await api.unlinkIdentity({ tenantId, email: s(fd, 'email'), provider: 'google', subject: s(fd, 'subject') });
+    revalidateUser(tenantId);
+    return { ok: true, message: 'Identity unlinked' };
+  });
+}
+
 const revalidateUser = (tenantId?: string) => {
   revalidatePath('/users');
   if (tenantId) revalidatePath(`/tenants/${tenantId}`);
