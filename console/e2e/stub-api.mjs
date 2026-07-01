@@ -23,7 +23,7 @@ const AUDIT = [
 ];
 // In-memory per-tenant stores so the detail page (and create flows) have something to render.
 const CLIENTS = { t1: [{ _id: 'c1', tenantId: 't1', name: 'existing-svc', grantTypes: ['client_credentials'], scopes: ['admin'] }] };
-const USERS = { t1: [{ _id: 'u1', tenantId: 't1', email: 'user@acme.com', status: 'active', roles: ['member'] }] };
+const USERS = { t1: [{ _id: 'u1', tenantId: 't1', email: 'user@acme.com', status: 'active', roles: ['member'], identities: [{ provider: 'google', subject: 'g-seed-1', email: 'user@acme.com', emailVerified: true }] }] };
 
 function send(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json' });
@@ -81,8 +81,22 @@ const server = createServer(async (req, res) => {
   }
   if (method === 'POST' && path === '/users') {
     const body = await readBody(req);
-    (USERS[body.tenantId] ??= []).push({ _id: 'nu', tenantId: body.tenantId, email: body.email, status: 'active', roles: body.roles ?? [] });
+    (USERS[body.tenantId] ??= []).push({ _id: 'nu', tenantId: body.tenantId, email: body.email, status: 'active', roles: body.roles ?? [], identities: [] });
     return send(res, 201, { id: 'nu', email: body.email, tenantId: body.tenantId });
+  }
+  if (method === 'POST' && path === '/users/link-identity') {
+    const body = await readBody(req);
+    const u = (USERS[body.tenantId] ?? []).find((x) => x.email === body.email);
+    if (!u) return send(res, 404, { error: 'user_not_found', error_description: 'User not found' });
+    (u.identities ??= []).push({ provider: 'google', subject: body.subject, email: body.identityEmail, emailVerified: !!body.emailVerified });
+    return send(res, 200, { email: body.email, provider: 'google', subject: body.subject, linked: true });
+  }
+  if (method === 'POST' && path === '/users/unlink-identity') {
+    const body = await readBody(req);
+    const u = (USERS[body.tenantId] ?? []).find((x) => x.email === body.email);
+    if (!u) return send(res, 404, { error: 'user_not_found', error_description: 'User not found' });
+    u.identities = (u.identities ?? []).filter((i) => !(i.provider === 'google' && i.subject === body.subject));
+    return send(res, 200, { email: body.email, provider: 'google', subject: body.subject, unlinked: true });
   }
 
   return send(res, 404, { error: 'not_found' });

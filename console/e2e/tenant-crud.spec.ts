@@ -47,6 +47,33 @@ test('create a client from the /clients page (SelectField path) — no client-si
   expect(errors, 'no uncaught browser errors').toEqual([]);
 });
 
+test('link and unlink a federated identity from the tenant detail page (RQ-0011)', async ({ context, page, baseURL }) => {
+  await seedAuth(context, baseURL!);
+  const errors = trackErrors(page);
+
+  await page.goto('/tenants/t1');
+  await expect(page.getByText('Users (human accounts)')).toBeVisible();
+
+  // The seeded user shows its linked Google identity.
+  await expect(page.getByText('google:g-seed-1')).toBeVisible();
+
+  // Link a new identity by google subject.
+  const userRow = page.locator('tr', { has: page.getByText('user@acme.com') });
+  const linkForm = userRow.locator('form', { has: page.getByRole('button', { name: 'Link Google' }) });
+  await linkForm.locator('input[name="subject"]').fill('g-new-2');
+  await linkForm.getByRole('button', { name: 'Link Google' }).click();
+  await expect(page.getByText('google:g-new-2')).toBeVisible();
+
+  // Unlink it again (native confirm auto-accepted). Scope to the identity row div carrying g-new-2.
+  page.on('dialog', (d) => d.accept());
+  const idRow = page.locator('div.items-center.gap-2', { hasText: 'google:g-new-2' });
+  await idRow.getByRole('button', { name: 'Unlink' }).click();
+  await expect(page.getByText('google:g-new-2')).toHaveCount(0);
+
+  await expect(page.getByText(/application error/i)).toHaveCount(0);
+  expect(errors, 'no uncaught browser errors').toEqual([]);
+});
+
 test('a backend failure renders a readable card, not an opaque crash', async ({ context, page, baseURL }) => {
   await seedAuth(context, baseURL!);
   const errors = trackErrors(page);
