@@ -170,6 +170,17 @@ sets these (`IDENTITY_SERVICE_*`) — a consuming product picks its own variable
 If `iss` / `aud` / the JWKS URL do not line up exactly, maestro rejects the token as unauthenticated
 (401) — there is no fallback.
 
+### Federated users are provisioned on first login (RQ-0011)
+
+The first time a person completes Google login, identity-service **just-in-time provisions** them as a
+manageable user record (visible in the console / `/admin/v1`, assignable a role, disable-able) and links
+the Google identity to it — no pre-registration needed. Subsequent logins reuse that record. If a user
+with the **same email already exists** in the tenant (e.g. a local-password account), the Google identity
+is linked onto it **only when Google reports the email verified**; an unverified-email collision is
+**denied**, never merged (account-takeover guard). Operators can link/unlink identities manually via
+`POST /admin/v1/users/link-identity` / `unlink-identity`. The issued token is unchanged by any of this —
+`sub` stays the Google subject. See [ADR-0012](../design/decisions/0012-federated-identity-and-account-linking.md).
+
 ## Local username/password login (RQ-0002)
 
 For tenants that want identity-service's own email + password IdP instead of (or alongside) Google,

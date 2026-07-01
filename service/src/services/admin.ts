@@ -225,6 +225,65 @@ export function createAdminService(deps: AdminServiceDependencies) {
     deps.logger?.info?.({ tenantId, email }, 'admin unlocked user');
   }
 
+  /** Link a federated identity onto an existing user (RQ-0011 US-5) — the operator counterpart to the
+   *  automatic link-on-verified-email at login, for the ambiguous cases the system won't merge itself. */
+  async function linkUserIdentity(
+    tenantId: string,
+    email: string,
+    identity: { provider: 'google'; subject: string; identityEmail?: string; emailVerified?: boolean }
+  ): Promise<{ email: string; provider: string; subject: string; linked: true }> {
+    if (identity?.provider !== 'google') throw new AdminServiceError("provider must be 'google'", 400, 'invalid_input');
+    if (!identity.subject?.trim()) throw new AdminServiceError('subject is required', 400, 'invalid_input');
+    const m = await models();
+    const normalized = email.trim().toLowerCase();
+    const user = await m.User.findOne({ tenantId, email: normalized }).lean().exec() as { _id: string; identities?: { provider: string; subject: string }[] } | null;
+    if (!user) throw new AdminServiceError('User not found', 404, 'user_not_found');
+
+    // The identity must not already belong to another user in the tenant (the unique index also enforces this).
+    const owner = await m.User.findOne({ tenantId, 'identities.provider': 'google', 'identities.subject': identity.subject }).lean().exec() as { _id?: string } | null;
+    if (owner && owner._id !== user._id) {
+      throw new AdminServiceError('Identity is already linked to another user', 409, 'identity_linked');
+    }
+
+    const already = (user.identities ?? []).some((i) => i.provider === 'google' && i.subject === identity.subject);
+    if (!already) {
+      await m.User.updateOne(
+        { tenantId, email: normalized },
+        {
+          $push: { identities: {
+            provider: 'google',
+            subject: identity.subject,
+            email: identity.identityEmail?.trim().toLowerCase(),
+            emailVerified: identity.emailVerified ?? false,
+            linkedAt: nowFn()
+          } },
+          $set: { updatedAt: nowFn() }
+        }
+      ).exec();
+    }
+    deps.logger?.info?.({ tenantId, email: normalized, subject: identity.subject }, 'admin linked user identity');
+    return { email: normalized, provider: 'google', subject: identity.subject, linked: true };
+  }
+
+  /** Remove a linked federated identity from a user (RQ-0011 US-5). */
+  async function unlinkUserIdentity(
+    tenantId: string,
+    email: string,
+    identity: { provider: 'google'; subject: string }
+  ): Promise<{ email: string; provider: string; subject: string; unlinked: true }> {
+    if (identity?.provider !== 'google') throw new AdminServiceError("provider must be 'google'", 400, 'invalid_input');
+    if (!identity.subject?.trim()) throw new AdminServiceError('subject is required', 400, 'invalid_input');
+    const m = await models();
+    const normalized = email.trim().toLowerCase();
+    const result = await m.User.updateOne(
+      { tenantId, email: normalized },
+      { $pull: { identities: { provider: 'google', subject: identity.subject } }, $set: { updatedAt: nowFn() } }
+    ).exec();
+    if (result.matchedCount === 0) throw new AdminServiceError('User not found', 404, 'user_not_found');
+    deps.logger?.info?.({ tenantId, email: normalized, subject: identity.subject }, 'admin unlinked user identity');
+    return { email: normalized, provider: 'google', subject: identity.subject, unlinked: true };
+  }
+
   /** Delete a local-credential user. 404 if it does not exist. */
   async function deleteUser(tenantId: string, email: string): Promise<{ email: string; deleted: true }> {
     const m = await models();
@@ -285,6 +344,7 @@ export function createAdminService(deps: AdminServiceDependencies) {
     listTenants, getTenant, upsertTenant,
     listClients, createClient, rotateClientSecret, deleteClient,
     listUsers, createUser, resetUserPassword, setUserStatus, unlockUser, deleteUser,
+    linkUserIdentity, unlinkUserIdentity,
     rotateKey, keyStatus, getStats
   };
 }

@@ -34,16 +34,28 @@ const attachSave = <T extends object>(doc: T): T & { save: () => Promise<void> }
 const matches = (item: any, query: any): boolean =>
   Object.entries(query).every(([key, value]) => item[key] === value);
 
+// User queries reach into the identities[] array and use $or (resolveUserBySubject) — richer than the
+// flat `matches` above, so the User mock gets its own matcher.
+function userMatches(u: any, query: any): boolean {
+  return Object.entries(query).every(([key, value]) => {
+    if (key === '$or') return (value as any[]).some((sub) => userMatches(u, sub));
+    if (key === 'identities.provider') return (u.identities ?? []).some((i: any) => i.provider === value);
+    if (key === 'identities.subject') return (u.identities ?? []).some((i: any) => i.subject === value);
+    return u[key] === value;
+  });
+}
+
 interface Store {
   tenants: any[];
   clients: any[];
   authorizations: any[];
   tokens: any[];
   sessions: any[];
+  users: any[];
 }
 
 function makeStore(): Store {
-  return { tenants: [], clients: [], authorizations: [], tokens: [], sessions: [] };
+  return { tenants: [], clients: [], authorizations: [], tokens: [], sessions: [], users: [] };
 }
 
 function makeDeps(store: Store, googleIdp: GoogleIdp, now: () => Date): OAuthServerDependencies {
@@ -70,6 +82,13 @@ function makeDeps(store: Store, googleIdp: GoogleIdp, now: () => Date): OAuthSer
         create: async (doc: any) => { store.sessions.push(doc); return doc; },
         findById: (id: string) => ({ exec: async () => { const found = store.sessions.find((s) => s._id === id); return found ? attachSave(found) : null; } }),
         updateOne: (filter: any, update: any) => ({ exec: async () => { const found = store.sessions.find((s) => matches(s, filter)); if (found) Object.assign(found, update.$set ?? {}); } })
+      },
+      User: {
+        findOne: (query: any) => ({
+          exec: async () => { const u = store.users.find((x) => userMatches(x, query)); return u ? attachSave(u) : null; },
+          lean: () => ({ exec: async () => store.users.find((x) => userMatches(x, query)) ?? null })
+        }),
+        create: async (doc: any) => { const d = { ...doc, identities: doc.identities ?? [] }; store.users.push(d); return attachSave(d); }
       },
       KeyStore: {} as any
     }) as any,
@@ -279,6 +298,150 @@ describe('OAuth server – Google SSO user flow (RQ-0001)', () => {
     await server.revokeUserToken({ token: token.refreshToken });
     expect(store.sessions[0].status).toBe('revoked');
     await expect(server.refreshUserToken({ refreshToken: token.refreshToken, clientId: 'client-maestro' }))
+      .rejects.toBeInstanceOf(InvalidGrantError);
+  });
+});
+
+// --- Federated user identity: provisioning, roles/status, linking (RQ-0011) -------------------
+
+describe('OAuth server – federated user identity (RQ-0011)', () => {
+  let store: Store;
+  let server: ReturnType<typeof createOAuthServer>;
+  const fixedNow = new Date('2026-06-01T12:00:00.000Z');
+  const verifier = 'test-code-verifier-0123456789-abcdefghijklmnop';
+
+  const build = (idp: GoogleIdp) => {
+    server = createOAuthServer(makeDeps(store, idp, () => fixedNow));
+  };
+
+  // Drive authorize -> callback and return the minted single-use code (token exchange left to the test).
+  async function runToCode(): Promise<string> {
+    await server.startAuthorization({
+      clientId: 'client-maestro',
+      redirectUri: 'https://maestro.test/callback',
+      codeChallenge: pkceChallenge(verifier),
+      state: 's'
+    });
+    const authRecord = store.authorizations[store.authorizations.length - 1];
+    await server.handleGoogleCallback({ code: 'google-code', state: authRecord.googleState });
+    return authRecord.code as string;
+  }
+
+  const exchange = (code: string) => server.issueAuthorizationCodeToken({
+    code, codeVerifier: verifier, clientId: 'client-maestro', redirectUri: 'https://maestro.test/callback'
+  });
+
+  async function rolesInToken(accessToken: string): Promise<unknown> {
+    const publicKey = await importSPKI(signingPublicPem, 'RS256');
+    const { payload } = await jwtVerify(accessToken, publicKey, { currentDate: fixedNow });
+    return payload.roles;
+  }
+
+  beforeEach(() => {
+    store = makeStore();
+    seedTenantAndClient(store);
+    build(makeStubIdp()); // verified email by default
+  });
+
+  it('JIT-provisions a federated user on first Google login (keyed by google sub, no password)', async () => {
+    await exchange(await runToCode());
+    expect(store.users).toHaveLength(1);
+    const user = store.users[0];
+    expect(user.email).toBe('reviewer@fps4.test');
+    expect(user.passwordHash).toBeUndefined();
+    expect(user.identities).toHaveLength(1);
+    expect(user.identities[0]).toMatchObject({ provider: 'google', subject: 'google-sub-123', emailVerified: true });
+    expect(user.lastLoginAt).toEqual(fixedNow);
+  });
+
+  it('a second login for the same identity does not create a duplicate user', async () => {
+    await exchange(await runToCode());
+    await exchange(await runToCode());
+    expect(store.users).toHaveLength(1);
+  });
+
+  it('stamps the provisioned user\'s roles into the token (RQ-0005 now works for Google users)', async () => {
+    // Pre-seed the same federated identity with a role an operator assigned.
+    store.users.push({
+      _id: 'u-existing', tenantId: 'tenant-maestro', email: 'reviewer@fps4.test', status: 'active',
+      roles: ['workspace_admin'], identities: [{ provider: 'google', subject: 'google-sub-123', emailVerified: true }]
+    });
+    const token = await exchange(await runToCode());
+    expect(await rolesInToken(token.accessToken)).toEqual(['workspace_admin']);
+    expect(store.users).toHaveLength(1); // matched the existing identity, no new row
+  });
+
+  it('denies a disabled user on the Google path (closing the status bypass)', async () => {
+    store.users.push({
+      _id: 'u-disabled', tenantId: 'tenant-maestro', email: 'reviewer@fps4.test', status: 'disabled',
+      roles: [], identities: [{ provider: 'google', subject: 'google-sub-123', emailVerified: true }]
+    });
+    const code = await runToCode();
+    await expect(exchange(code)).rejects.toBeInstanceOf(InvalidGrantError);
+    expect(store.tokens).toHaveLength(0);
+  });
+
+  it('links the identity onto an existing account when the email is verified and matches', async () => {
+    // A local password user already exists with this email.
+    store.users.push({
+      _id: 'local-1', tenantId: 'tenant-maestro', email: 'reviewer@fps4.test', passwordHash: 'scrypt$...',
+      status: 'active', roles: ['member'], identities: []
+    });
+    const token = await exchange(await runToCode());
+    expect(store.users).toHaveLength(1);                 // linked, not duplicated
+    const user = store.users[0];
+    expect(user._id).toBe('local-1');
+    expect(user.identities).toHaveLength(1);
+    expect(user.identities[0]).toMatchObject({ provider: 'google', subject: 'google-sub-123' });
+    // Token sub is still the Google subject (contract unchanged), roles come from the linked account.
+    const publicKey = await importSPKI(signingPublicPem, 'RS256');
+    const { payload } = await jwtVerify(token.accessToken, publicKey, { currentDate: fixedNow });
+    expect(payload.sub).toBe('google-sub-123');
+    expect(payload.roles).toEqual(['member']);
+  });
+
+  it('refuses to merge onto an existing account when the Google email is unverified', async () => {
+    build(makeStubIdp({ verifyIdToken: async () => ({ email: 'reviewer@fps4.test', sub: 'google-sub-123', emailVerified: false }) }));
+    store.users.push({
+      _id: 'local-1', tenantId: 'tenant-maestro', email: 'reviewer@fps4.test', passwordHash: 'scrypt$...',
+      status: 'active', roles: ['member'], identities: []
+    });
+    const code = await runToCode();
+    await expect(exchange(code)).rejects.toBeInstanceOf(AccessDeniedError);
+    expect(store.users[0].identities).toHaveLength(0);   // no link
+    expect(store.tokens).toHaveLength(0);                // no token
+  });
+
+  it('is idempotent under the concurrent-first-login race (unique index rejects the duplicate insert)', async () => {
+    // Simulate: another concurrent login already inserted the user; our create loses the race with 11000.
+    const raced = {
+      _id: 'u-raced', tenantId: 'tenant-maestro', email: 'reviewer@fps4.test', status: 'active',
+      roles: ['fast'], identities: [{ provider: 'google', subject: 'google-sub-123', emailVerified: true }]
+    };
+    const deps = makeDeps(store, makeStubIdp(), () => fixedNow);
+    const baseModels = deps.makeModels;
+    deps.makeModels = (conn: any) => {
+      const m = baseModels(conn);
+      const originalFindOne = m.User.findOne;
+      m.User.create = async () => { store.users.push(raced); const e: any = new Error('dup'); e.code = 11000; throw e; };
+      m.User.findOne = originalFindOne;
+      return m;
+    };
+    server = createOAuthServer(deps);
+
+    const token = await exchange(await runToCode());
+    expect(store.users).toHaveLength(1);
+    expect(await rolesInToken(token.accessToken)).toEqual(['fast']); // re-read the winner
+  });
+
+  it('a federated-only user (no password) cannot use the password grant', async () => {
+    store.tenants[0].oauth.allowedGrantTypes = ['authorization_code', 'password'];
+    store.clients[0].grantTypes = ['authorization_code', 'password'];
+    store.users.push({
+      _id: 'u-fed', tenantId: 'tenant-maestro', email: 'fed@fps4.test', status: 'active', roles: [],
+      identities: [{ provider: 'google', subject: 'google-sub-999', emailVerified: true }]
+    });
+    await expect(server.issuePasswordToken({ username: 'fed@fps4.test', password: 'anything', clientId: 'client-maestro' }))
       .rejects.toBeInstanceOf(InvalidGrantError);
   });
 });

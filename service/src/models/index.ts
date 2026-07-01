@@ -24,6 +24,6 @@ export { Session, type SessionDocument } from './session.js';
 export { OAuthClient, type OAuthClientDocument } from './oauth-client.js';
 export { OAuthToken, type OAuthTokenDocument } from './oauth-token.js';
 export { OAuthAuthorization, type OAuthAuthorizationDocument } from './oauth-authorization.js';
-export { User, type UserDocument } from './user.js';
+export { User, type UserDocument, type FederatedIdentity } from './user.js';
 export { KeyStore, type KeyStoreDocument } from './key-store.js';
 export { AuditLog, type AuditLogDocument } from './audit-log.js';

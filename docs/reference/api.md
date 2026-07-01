@@ -86,6 +86,12 @@ The `access_token` is an RS256 JWT carrying **`email`**, the stable Google **`su
 `sub` claim), **`iss`**, the consumer-bound **`aud`** (the client's configured `audience`), and
 **`exp`** + `iat` — verifiable via [`/.well-known/jwks.json`](#get-well-knownjwksjson).
 
+On first login the person is **just-in-time provisioned** as a manageable user record and the Google
+identity is linked to it; a subsequent login with a verified email that matches an existing account
+links onto that account rather than creating a duplicate (RQ-0011). This is issuer-internal — the token
+claims above are **unchanged**. Because provisioning yields a real user, a `disabled`/`locked` status
+and assigned `roles` now apply to Google logins exactly as to password logins.
+
 When the authenticated user has roles, the token also carries a **`roles`** claim — a JSON array of
 coarse, tenant-scoped role strings (RQ-0005), **omitted** when the user has none. Roles are advisory
 identity assertions: identity-service does **not** enforce them — each consuming product maps roles to
@@ -347,10 +353,13 @@ and the [admin console](../../console/README.md) all sit on the same service lay
 | `GET /tenants/{tenantId}/clients` | `admin:clients` | List a tenant's OAuth clients. |
 | `POST /clients` | `admin:clients` | Register a client. **The client secret is returned once** — only its hash is persisted. |
 | `POST /clients/{id}/rotate-secret` | `admin:clients` | Rotate a client secret (returns the new secret once). |
+| `GET /tenants/{tenantId}/users` | `admin:users` | List a tenant's users (local + federated), including each user's linked `identities[]`; never returns `passwordHash`. |
 | `POST /users` | `admin:users` | Create a local user. |
 | `POST /users/reset-password` | `admin:users` | Reset a local user's password (`{ tenantId, email, password }`). |
-| `POST /users/status` | `admin:users` | Set user status (`active` \| `disabled`). |
+| `POST /users/status` | `admin:users` | Set user status (`active` \| `disabled`) — enforced on **all** login paths, Google included (RQ-0011). |
 | `POST /users/unlock` | `admin:users` | Clear brute-force lockout counters. |
+| `POST /users/link-identity` | `admin:users` | Link a federated identity onto a user (`{ tenantId, email, provider:"google", subject, identityEmail?, emailVerified? }`); `409 identity_linked` if already owned (RQ-0011). |
+| `POST /users/unlink-identity` | `admin:users` | Remove a linked federated identity (`{ tenantId, email, provider:"google", subject }`) (RQ-0011). |
 | `POST /keys/rotate` | `admin:keys` | Mint a new active signing key; demote the previous to `inactive`. |
 | `GET /keys` | `admin:keys` | Inspect `key_store` status. |
 | `GET /stats` | `admin:stats` | Aggregate counts for the dashboards (see below). |
