@@ -46,6 +46,7 @@ work warrants it.
 | [RQ-0009 — Console ↔ management-API parity](./product/RQ-0009-console-api-parity.md) | [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md) |
 | [RQ-0010 — Console UX & IA polish](./product/RQ-0010-console-ux-polish.md) | [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md) |
 | [RQ-0011 — Federated user identity view](./product/RQ-0011-federated-user-identity-view.md) | [ADR-0012](./design/decisions/0012-federated-identity-and-account-linking.md) |
+| [RQ-0012 — "Continue with Google" in the drop-in `<Login/>`](./product/RQ-0012-react-google-login.md) | [ADR-0002](./design/decisions/0002-optional-react-ui-package.md) |
 
 The **management plane** (HTTP `/admin/v1` + MCP + admin console) and the repositioning as a standalone
 identity service are decided in [ADR-0007](./design/decisions/0007-management-api-mcp-and-standalone-identity-service.md),

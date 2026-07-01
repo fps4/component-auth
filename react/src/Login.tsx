@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type CSSProperties } from 'react';
 import { requestPasswordToken, LoginError, type UserTokenResponse } from './password.js';
+import { startGoogleLoginRedirect } from './google.js';
 
 export interface LoginClassNames {
   form?: string;
@@ -8,6 +9,17 @@ export interface LoginClassNames {
   input?: string;
   button?: string;
   error?: string;
+  googleButton?: string;
+  divider?: string;
+}
+
+export interface GoogleLoginOptions {
+  /** where identity-service returns the browser — must be registered on the client (exact match) */
+  redirectUri: string;
+  /** optional OAuth scopes to request from the upstream */
+  scope?: string[];
+  /** button label */
+  label?: string;
 }
 
 export interface LoginProps {
@@ -31,6 +43,14 @@ export interface LoginProps {
   unstyled?: boolean;
   /** override fetch (tests / SSR) */
   fetchImpl?: typeof fetch;
+  /**
+   * Enable a "Continue with Google" button (RQ-0012). The button starts the redirect flow and stashes
+   * the PKCE verifier; the host app completes it on its callback route with `completeGoogleLoginFromRedirect`.
+   * The client must allow the `authorization_code` grant and have an `audience`.
+   */
+  google?: GoogleLoginOptions;
+  /** hide the email/password form (e.g. Google-only login). Requires `google`. */
+  hidePasswordForm?: boolean;
 }
 
 // Minimal, neutral defaults so the component is usable with zero styling, yet every element takes a
@@ -41,7 +61,9 @@ const baseStyles: Record<string, CSSProperties> = {
   label: { fontSize: 14, fontWeight: 500 },
   input: { padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14 },
   button: { padding: '9px 12px', borderRadius: 6, border: 'none', background: '#0f172a', color: '#fff', fontSize: 14, cursor: 'pointer' },
-  error: { color: '#b91c1c', fontSize: 13 }
+  error: { color: '#b91c1c', fontSize: 13 },
+  googleButton: { padding: '9px 12px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', fontSize: 14, cursor: 'pointer' },
+  divider: { textAlign: 'center', color: '#94a3b8', fontSize: 12 }
 };
 
 /**
@@ -54,7 +76,8 @@ export function Login(props: LoginProps) {
     baseUrl, clientId, onSuccess, onError,
     title = 'Sign in', submitLabel = 'Sign in',
     emailLabel = 'Email', passwordLabel = 'Password',
-    className, classNames = {}, unstyled = false, fetchImpl
+    className, classNames = {}, unstyled = false, fetchImpl,
+    google, hidePasswordForm = false
   } = props;
 
   const [email, setEmail] = useState('');
@@ -82,10 +105,46 @@ export function Login(props: LoginProps) {
     }
   }
 
+  // Google is a redirect flow: kick it off (stashing the PKCE verifier) and navigate away. The host
+  // app completes it on its callback route with `completeGoogleLoginFromRedirect` (RQ-0012).
+  async function handleGoogle() {
+    if (submitting || !google) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await startGoogleLoginRedirect({ baseUrl, clientId, redirectUri: google.redirectUri, scope: google.scope });
+      // On success the browser navigates to Google; control does not return here.
+    } catch (err) {
+      const e = err instanceof Error ? err : new LoginError('Google login failed', 0);
+      setError(e.message);
+      onError?.(e);
+      setSubmitting(false);
+    }
+  }
+
+  const googleButton = google ? (
+    <button
+      type="button"
+      className={classNames.googleButton}
+      style={style('googleButton')}
+      onClick={handleGoogle}
+      disabled={submitting}
+    >
+      {google.label ?? 'Continue with Google'}
+    </button>
+  ) : null;
+
   return (
     <form className={className} style={style('form')} onSubmit={handleSubmit} noValidate>
       {title ? <h2>{title}</h2> : null}
 
+      {hidePasswordForm && google ? (
+        <>
+          {googleButton}
+          {error ? <div role="alert" className={classNames.error} style={style('error')}>{error}</div> : null}
+        </>
+      ) : (
+      <>
       <div className={classNames.field} style={style('field')}>
         <label className={classNames.label} style={style('label')} htmlFor="identity-service-email">{emailLabel}</label>
         <input
@@ -119,6 +178,15 @@ export function Login(props: LoginProps) {
       <button className={classNames.button} style={style('button')} type="submit" disabled={submitting}>
         {submitting ? '…' : submitLabel}
       </button>
+
+      {googleButton ? (
+        <>
+          <div className={classNames.divider} style={style('divider')}>or</div>
+          {googleButton}
+        </>
+      ) : null}
+      </>
+      )}
     </form>
   );
 }
