@@ -1,4 +1,4 @@
-# Focused STRUCTURAL seed for the Sovereign Skills Coach (ADR-0011).
+# Focused STRUCTURAL seed for the Skills Coach (ADR-0011).
 #
 # Per ADR-0011, tenants + OAuth clients are declarative/GitOps (this file); users + credentials are
 # operational and owned by the live DB (ADR-0008), managed via the admin plane (console/HTTP/MCP). So
@@ -17,9 +17,9 @@
 #   MONGO_URI=mongodb://localhost:27019 MONGO_DB_NAME=identity-service npm run seed
 
 tenants:
-  # Sovereign Skills Coach — resource server verifies aud=coach-workspace + the `roles` claim.
+  # Skills Coach — resource server verifies aud=coach-workspace + the `roles` claim.
   - id: coach
-    name: Sovereign Skills Coach
+    name: Skills Coach
     status: active
     allowedOrigins:
       - http://localhost:3000        # local dev (web runs on :3000)
@@ -36,7 +36,7 @@ tenants:
       limits: { tokensPerMinute: 200 }
     clients:
       - id: coach-web
-        name: Sovereign Skills Coach Web
+        name: Skills Coach Web
         grantTypes: [password, authorization_code]   # password + Google SSO (authorization_code + PKCE, RQ-0012)
         audience: coach-workspace     # becomes the token `aud` (matches the coach API's IDENTITY_SERVICE_AUDIENCE)
         redirectUris:                 # the coach web /auth/callback (exact-match validated) — RQ-0012

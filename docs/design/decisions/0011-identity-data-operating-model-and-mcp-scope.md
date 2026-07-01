@@ -25,7 +25,7 @@ left a seam undefined:
   recovery is a restore from an off-host backup, not a re-seed (a re-seed restores *definitions*, never
   runtime state).
 
-In practice the ambiguity bit us. The Sovereign Skills Coach was added to `seed.yaml` (tenant + client +
+In practice the ambiguity bit us. The Skills Coach was added to `seed.yaml` (tenant + client +
 users), but the seed workflow never ran for it (its `SEED_*` secrets were never configured), so the
 objects were created out-of-band via the MCP/admin plane instead — **and the `coach-web` OAuth client
 was missed**. Result: a live tenant and users with no client, and a production login failing with

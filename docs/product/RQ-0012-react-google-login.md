@@ -30,7 +30,7 @@ maestro:
 
 Google SSO shipped as endpoints + headless SDK helpers (RQ-0001), and the drop-in `<Login/>` (RQ-0003)
 covers only the `password` grant. So every consumer that wants a Google button re-implements the same
-redirect + PKCE + callback plumbing (and some, like sovereign-skills-coach, inline it). The reusable
+redirect + PKCE + callback plumbing (and some, like skills-coach, inline it). The reusable
 piece — the button, the PKCE stash, and a one-call callback completion — belongs in the shared package.
 
 The asymmetry is intrinsic, not incidental: **password is a single POST** the component can own

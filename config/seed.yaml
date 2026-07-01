@@ -128,19 +128,19 @@ tenants:
         claims:
           role: product_runtime
           email: runtime@components.fps4.nl
-      # sovereign-skills-coach's ds1 runtime reports fleet telemetry to maestro under the
-      # "sovereign-skills-coach" product (registered in maestro/config/products.yaml with this exact
+      # skills-coach's ds1 runtime reports fleet telemetry to maestro under the
+      # "skills-coach" product (registered in maestro/config/products.yaml with this exact
       # runtime subject). The secret MUST equal the coach repo's MAESTRO_RUNTIME_CLIENT_SECRET Actions secret.
-      - id: sovereign-skills-coach-ds1
-        name: sovereign-skills-coach@ds1 runtime
+      - id: skills-coach-ds1
+        name: skills-coach@ds1 runtime
         grantTypes: [client_credentials]
         isConfidential: true
         secret: ${MAESTRO_COACH_DS1_SECRET}
         audience: maestro-workspace
-        subject: runtime@sovereign-skills-coach.fps4.nl
+        subject: runtime@skills-coach.fps4.nl
         claims:
           role: product_runtime
-          email: runtime@sovereign-skills-coach.fps4.nl
+          email: runtime@skills-coach.fps4.nl
     users:
       - email: po@maestro.fps4.nl
         password: ${SEED_MAESTRO_PO_PASSWORD}
@@ -152,9 +152,9 @@ tenants:
         password: ${SEED_MAESTRO_ADMIN_PASSWORD}
         status: active
 
-  # Sovereign Skills Coach — resource server verifies aud=coach-workspace + the `roles` claim.
+  # Skills Coach — resource server verifies aud=coach-workspace + the `roles` claim.
   - id: coach
-    name: Sovereign Skills Coach
+    name: Skills Coach
     status: active
     allowedOrigins:
       - http://localhost:3000        # local dev (web runs on :3000)
@@ -171,7 +171,7 @@ tenants:
       limits: { tokensPerMinute: 200 }
     clients:
       - id: coach-web
-        name: Sovereign Skills Coach Web
+        name: Skills Coach Web
         grantTypes: [password, authorization_code]   # password + Google SSO (authorization_code + PKCE, RQ-0012)
         audience: coach-workspace     # becomes the token `aud` (matches the coach API's IDENTITY_SERVICE_AUDIENCE)
         redirectUris:                 # the coach web /auth/callback (exact-match validated) — RQ-0012
