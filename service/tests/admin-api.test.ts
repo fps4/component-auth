@@ -25,6 +25,11 @@ import { verifySecret } from '../src/utils/hash.js';
 const match = (doc: any, filter: Record<string, any>): boolean =>
   Object.entries(filter ?? {}).every(([k, v]) => {
     if (v && typeof v === 'object' && '$gt' in v) return doc[k] != null && doc[k] > v.$gt;
+    // Dotted path into the identities[] array (e.g. 'identities.subject').
+    if (k.startsWith('identities.')) {
+      const field = k.slice('identities.'.length);
+      return Array.isArray(doc.identities) && doc.identities.some((i: any) => i[field] === v);
+    }
     return doc[k] === v;
   });
 
@@ -63,6 +68,12 @@ function fakeCollection(items: any[]) {
         const doc = items.find((d) => match(d, filter));
         if (!doc) return { matchedCount: 0 };
         Object.assign(doc, update.$set ?? {});
+        for (const [k, v] of Object.entries(update.$push ?? {})) {
+          doc[k] = doc[k] ?? []; doc[k].push(v);
+        }
+        for (const [k, cond] of Object.entries(update.$pull ?? {})) {
+          if (Array.isArray(doc[k])) doc[k] = doc[k].filter((el: any) => !match(el, cond as any));
+        }
         return { matchedCount: 1 };
       }
     })
@@ -150,6 +161,46 @@ describe('admin service', () => {
     expect(u.email).toBe('a@example.com'); // normalized
     await expect(admin.createUser({ tenantId: 't1', email: 'a@example.com', password: 'x' }))
       .rejects.toMatchObject({ status: 409, code: 'email_taken' });
+  });
+
+  it('links a federated identity onto a user, is idempotent, and lists it (RQ-0011)', async () => {
+    const admin = makeAdmin(state);
+    await admin.createUser({ tenantId: 't1', email: 'op@acme.test', password: 'secret-pass' });
+
+    const res = await admin.linkUserIdentity('t1', 'op@acme.test', { provider: 'google', subject: 'g-1', emailVerified: true });
+    expect(res).toMatchObject({ email: 'op@acme.test', provider: 'google', subject: 'g-1', linked: true });
+
+    const user = state.User._items.find((u) => u.email === 'op@acme.test');
+    expect(user.identities).toHaveLength(1);
+    expect(user.identities[0]).toMatchObject({ provider: 'google', subject: 'g-1', emailVerified: true });
+
+    // Idempotent: linking the same identity again does not duplicate it.
+    await admin.linkUserIdentity('t1', 'op@acme.test', { provider: 'google', subject: 'g-1' });
+    expect(user.identities).toHaveLength(1);
+
+    // listUsers surfaces identities and never the password hash.
+    const listed = (await admin.listUsers('t1')).find((u: any) => u.email === 'op@acme.test');
+    expect(listed.identities[0].subject).toBe('g-1');
+  });
+
+  it('refuses to link an identity already owned by another user', async () => {
+    const admin = makeAdmin(state);
+    await admin.createUser({ tenantId: 't1', email: 'a@acme.test', password: 'p1' });
+    await admin.createUser({ tenantId: 't1', email: 'b@acme.test', password: 'p2' });
+    await admin.linkUserIdentity('t1', 'a@acme.test', { provider: 'google', subject: 'shared' });
+    await expect(admin.linkUserIdentity('t1', 'b@acme.test', { provider: 'google', subject: 'shared' }))
+      .rejects.toMatchObject({ status: 409, code: 'identity_linked' });
+  });
+
+  it('unlinks a federated identity and 404s on an unknown user', async () => {
+    const admin = makeAdmin(state);
+    await admin.createUser({ tenantId: 't1', email: 'op@acme.test', password: 'p' });
+    await admin.linkUserIdentity('t1', 'op@acme.test', { provider: 'google', subject: 'g-1' });
+    const res = await admin.unlinkUserIdentity('t1', 'op@acme.test', { provider: 'google', subject: 'g-1' });
+    expect(res).toMatchObject({ unlinked: true });
+    expect(state.User._items.find((u) => u.email === 'op@acme.test').identities).toHaveLength(0);
+    await expect(admin.unlinkUserIdentity('t1', 'nobody@acme.test', { provider: 'google', subject: 'g-1' }))
+      .rejects.toMatchObject({ status: 404, code: 'user_not_found' });
   });
 
   it('reports stats in the console shape', async () => {

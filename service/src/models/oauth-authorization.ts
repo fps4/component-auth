@@ -28,6 +28,7 @@ export interface OAuthAuthorizationDocument extends Document<string> {
   code?: string;               // our single-use authorization code (minted after Google succeeds)
   email?: string;              // captured identity once Google verifies
   sub?: string;                // stable Google subject
+  emailVerified?: boolean;     // whether Google vouched the email — gates account linking (RQ-0011)
   expiresAt: Date;
   createdAt?: Date;
 }
@@ -47,6 +48,7 @@ const oauthAuthorizationSchema = new mongoose.Schema<OAuthAuthorizationDocument>
   code: { type: String, index: true },
   email: { type: String },
   sub: { type: String },
+  emailVerified: { type: Boolean },
   expiresAt: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now }
 });

@@ -144,6 +144,24 @@ router.post('/users/unlock', requireAdmin(ADMIN_SCOPES.users), async (req, res) 
   } catch (e) { handleError(res, e); }
 });
 
+router.post('/users/link-identity', requireAdmin(ADMIN_SCOPES.users), async (req, res) => {
+  try {
+    const { tenantId, email, provider, subject, identityEmail, emailVerified } = req.body ?? {};
+    const result = await adminService.linkUserIdentity(tenantId, email, { provider, subject, identityEmail, emailVerified });
+    audit(req, res, 'user.linkIdentity', { type: 'user', id: email }, { tenantId, provider, subject });
+    res.json(result);
+  } catch (e) { handleError(res, e); }
+});
+
+router.post('/users/unlink-identity', requireAdmin(ADMIN_SCOPES.users), async (req, res) => {
+  try {
+    const { tenantId, email, provider, subject } = req.body ?? {};
+    const result = await adminService.unlinkUserIdentity(tenantId, email, { provider, subject });
+    audit(req, res, 'user.unlinkIdentity', { type: 'user', id: email }, { tenantId, provider, subject });
+    res.json(result);
+  } catch (e) { handleError(res, e); }
+});
+
 router.post('/users/delete', requireAdmin(ADMIN_SCOPES.users), async (req, res) => {
   try {
     const { tenantId, email } = req.body ?? {};

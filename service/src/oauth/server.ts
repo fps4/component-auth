@@ -31,6 +31,7 @@ import { verifyPkceS256 } from './pkce.js';
 import { createGoogleIdp, type GoogleIdp } from './google.js';
 import type { TenantOAuthConfig, TenantDocument } from '../models/tenant.js';
 import type { OAuthClientDocument } from '../models/oauth-client.js';
+import type { UserDocument } from '../models/user.js';
 
 const GRANT_CLIENT_CREDENTIALS = 'client_credentials';
 const GRANT_AUTHORIZATION_CODE = 'authorization_code';
@@ -319,6 +320,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       record.code = randomToken();
       record.email = identity.email;
       record.sub = identity.sub;
+      record.emailVerified = identity.emailVerified;
       await record.save();
 
       const sep = record.consumerRedirectUri.includes('?') ? '&' : '?';
@@ -366,13 +368,26 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     record.code = undefined;
     await record.save();
 
+    // JIT-provision (or link) the person behind this federated identity and apply the same status +
+    // roles rules the password grant enforces (RQ-0011 US-2/US-3/US-4). `provisionFederatedUser`
+    // throws if the account is disabled/locked or an unverified email would collide.
+    const user = await provisionFederatedUser(models, {
+      tenantId: record.tenantId,
+      provider: 'google',
+      subject: record.sub,
+      email: record.email,
+      emailVerified: record.emailVerified === true
+    });
+
     return issueUserTokens(models, {
       client,
       tenantId: record.tenantId,
+      // Token claims are unchanged from RQ-0001: the email + stable Google `sub` Google asserted. The
+      // user record is a resolution layer behind the token, never a change to it (ADR-0012).
       email: record.email,
       sub: record.sub,
       scope: record.scope ?? [],
-      roles: await loadUserRoles(models, record.sub)
+      roles: Array.isArray(user.roles) ? user.roles : []
     });
   }
 
@@ -388,10 +403,11 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     const user = await models.User.findOne({ tenantId: client.tenantId, email }).exec();
     const now = nowFn();
 
-    // Uniform failure for unknown email vs wrong password — no user enumeration.
+    // Uniform failure for unknown email vs wrong password — no user enumeration. A federated-only user
+    // (no passwordHash, RQ-0011) cannot password-login and fails identically to a wrong password.
     const genericDenied = () => new InvalidGrantError('Invalid credentials');
 
-    if (!user || user.status === 'disabled') {
+    if (!user || user.status === 'disabled' || !user.passwordHash) {
       throw genericDenied();
     }
     // Temporal brute-force lockout.
@@ -464,6 +480,12 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       throw new InvalidGrantError('Refresh token has no subject');
     }
 
+    // A refresh must honour a user disabled/locked since login, and re-read current roles (RQ-0011
+    // US-3). Resolve by identity subject or local _id; a token with no backing user (should not happen
+    // post-provisioning) simply refreshes with no roles rather than failing closed.
+    const user = await resolveUserBySubject(models, tokenDoc.tenantId, sub);
+    if (user) assertUserActive(user);
+
     // Rotate: the presented refresh token is single-use.
     tokenDoc.status = 'revoked';
     await tokenDoc.save();
@@ -474,7 +496,7 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
       email,
       sub,
       scope: tokenDoc.scope ?? [],
-      roles: await loadUserRoles(models, sub),
+      roles: Array.isArray(user?.roles) ? user!.roles : [],
       session
     });
   }
@@ -501,13 +523,94 @@ export function createOAuthServer(deps: OAuthServerDependencies) {
     deps.logger?.info?.({ clientId: tokenDoc.clientId, sessionId: tokenDoc.sessionId }, 'revoked user session');
   }
 
-  /** Current coarse roles for a local user by stable subject id (RQ-0005). Federated (Google) users
-   *  have no local record → no roles. Re-read on every issuance so role changes apply on next refresh. */
-  async function loadUserRoles(models: ModelsBucket, sub: string): Promise<string[]> {
-    const userModel = models.User as { findById?: (id: string) => { lean: () => { exec: () => Promise<unknown> } } };
-    if (!userModel?.findById) return [];
-    const user = (await userModel.findById(sub).lean().exec()) as { roles?: string[] } | null;
-    return Array.isArray(user?.roles) ? user.roles : [];
+  /** Deny issuance for a person an operator has disabled or who is inside a brute-force lockout window.
+   *  Enforced on every user grant so the guarantee holds regardless of provider (RQ-0011 US-3). */
+  function assertUserActive(user: { status?: string; lockedUntil?: Date | null }): void {
+    if (user.status === 'disabled') {
+      throw new InvalidGrantError('Account is disabled');
+    }
+    if (user.lockedUntil && user.lockedUntil.getTime() > nowFn().getTime()) {
+      throw new InvalidGrantError('Account is temporarily locked');
+    }
+  }
+
+  /** Resolve the person behind a token subject: a federated `sub` matches a linked identity, a local
+   *  `sub` matches the user `_id` (RQ-0011 US-3). Read-only; used to re-read roles/status on refresh. */
+  async function resolveUserBySubject(models: ModelsBucket, tenantId: string, sub: string): Promise<UserDocument | null> {
+    return models.User.findOne({
+      tenantId,
+      $or: [{ _id: sub }, { 'identities.subject': sub }]
+    }).lean().exec() as Promise<UserDocument | null>;
+  }
+
+  /**
+   * Just-in-time provision the user behind a federated login (RQ-0011 US-2/US-4). Resolution order:
+   *   1. the identity `(provider, subject)` is already linked → returning user (refresh email + login).
+   *   2. a user with the same email exists → link this identity onto it, but ONLY if the provider
+   *      vouched the email (`email_verified`); an unverified collision is denied, never merged (US-4).
+   *   3. otherwise → create a new federated-only user (no password).
+   * Enforces `status`/lockout on an existing account before issuing (US-3). Idempotent under the
+   * concurrent-first-login race via the unique identity index.
+   */
+  async function provisionFederatedUser(
+    models: ModelsBucket,
+    args: { tenantId: string; provider: 'google'; subject: string; email: string; emailVerified: boolean }
+  ): Promise<UserDocument> {
+    const now = nowFn();
+    const emailNorm = args.email.trim().toLowerCase();
+    const { tenantId, provider, subject } = args;
+
+    // 1) Identity already linked.
+    const linked = await models.User.findOne({ tenantId, 'identities.provider': provider, 'identities.subject': subject }).exec();
+    if (linked) {
+      assertUserActive(linked);
+      const identity = linked.identities?.find((i) => i.provider === provider && i.subject === subject);
+      if (identity) {
+        identity.email = emailNorm;
+        identity.emailVerified = args.emailVerified;
+      }
+      linked.lastLoginAt = now;
+      await linked.save();
+      return linked;
+    }
+
+    // 2) An account with this email exists — link only on a verified email (account-takeover guard).
+    const byEmail = await models.User.findOne({ tenantId, email: emailNorm }).exec();
+    if (byEmail) {
+      if (!args.emailVerified) {
+        throw new AccessDeniedError('Cannot link an unverified email to an existing account');
+      }
+      assertUserActive(byEmail);
+      byEmail.identities = byEmail.identities ?? [];
+      byEmail.identities.push({ provider, subject, email: emailNorm, emailVerified: true, linkedAt: now });
+      byEmail.lastLoginAt = now;
+      await byEmail.save();
+      return byEmail;
+    }
+
+    // 3) First sighting of this person — create a federated-only user.
+    try {
+      return await models.User.create({
+        _id: randomUUID(),
+        tenantId,
+        email: emailNorm,
+        emailVerified: args.emailVerified,
+        status: 'active',
+        roles: [],
+        identities: [{ provider, subject, email: emailNorm, emailVerified: args.emailVerified, linkedAt: now }],
+        lastLoginAt: now
+      });
+    } catch (err) {
+      // Concurrent first login: the unique identity index rejected the duplicate insert — re-read it.
+      if ((err as { code?: number }).code === 11000) {
+        const raced = await models.User.findOne({ tenantId, 'identities.provider': provider, 'identities.subject': subject }).exec();
+        if (raced) {
+          assertUserActive(raced);
+          return raced;
+        }
+      }
+      throw err;
+    }
   }
 
   /**
